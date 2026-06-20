@@ -12,7 +12,8 @@ export class InternalKeyGuard implements CanActivate {
     ]);
     if (isPublic) return true;
     const req = ctx.switchToHttp().getRequest<{ headers: Record<string, string> }>();
-    if (req.headers['x-internal-key'] !== process.env.INTERNAL_API_KEY) {
+    const apiKey = process.env.INTERNAL_API_KEY;
+    if (!apiKey || req.headers['x-internal-key'] !== apiKey) {
       throw new UnauthorizedException('invalid internal key');
     }
     return true;
