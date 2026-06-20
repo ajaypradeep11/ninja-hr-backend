@@ -1,0 +1,26 @@
+# Local Postgres for TestHR development.
+#   npm run db:up      → start (waits until healthy)
+#   npm run db:fresh   → wipe volume, start, migrate, seed
+#   npm run db:nuke    → stop and delete the data volume
+# Data lives in the named volume `testhr-pgdata` so it survives `db:down`.
+services:
+  db:
+    image: postgres:16
+    container_name: testhr-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: testhr
+    ports:
+      - "5433:5432"
+    volumes:
+      - testhr-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d testhr"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  testhr-pgdata:

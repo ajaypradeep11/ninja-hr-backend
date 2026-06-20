@@ -1,0 +1,390 @@
+// TestHR — Prisma schema (Postgres / Supabase)
+// Generated client lives in src/platform/database/generated/prisma (gitignored).
+
+generator client {
+  provider      = "prisma-client"
+  output        = "../src/platform/database/generated/prisma"
+  moduleFormat  = "cjs"
+  runtime       = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Province {
+  ON
+  BC
+  AB
+  QC
+  SK
+  MB
+  NS
+  NB
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  PRE_HIRE
+  ON_STATUTORY_LEAVE
+  OFFBOARDING
+  TERMINATED
+}
+
+enum CaseStatus {
+  INVITED
+  FORMS_IN_PROGRESS
+  PENDING_VERIFICATION
+  READY_TO_ACTIVATE
+  ACTIVE
+}
+
+enum TaskOwner {
+  HR
+  FINANCE
+  IT_OPS
+  MANAGER
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum DataAccess {
+  GENERAL
+  BANKING
+  MEDICAL
+}
+
+enum DocStatus {
+  PENDING
+  NEEDS_VERIFICATION
+  VERIFIED
+}
+
+model Employee {
+  id            String              @id @default(cuid())
+  name          String
+  title         String
+  department    String
+  province      Province
+  email         String              @unique
+  hireDate      DateTime
+  birthDate     DateTime
+  manager       String?
+  status        EmployeeStatus      @default(ACTIVE)
+  salary        Int
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  leaveRequests LeaveRequest[]
+  reviews       PerformanceReview[]
+  documents     VaultDocument[]
+}
+
+/* ------------------------------ Leave ------------------------------ */
+
+enum LeaveType {
+  VACATION
+  SICK
+  PERSONAL
+  PARENTAL
+  BEREAVEMENT
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  DENIED
+}
+
+model LeaveRequest {
+  id         String      @id @default(cuid())
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  type       LeaveType
+  start      DateTime
+  end        DateTime
+  status     LeaveStatus @default(PENDING)
+  days       Int
+
+  @@index([employeeId])
+}
+
+/* --------------------------- Recruitment --------------------------- */
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACTOR
+}
+
+enum ReqStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  PUBLISHED
+}
+
+enum CandidateStage {
+  APPLIED
+  AI_SCREENED
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+}
+
+model Requisition {
+  id         String         @id @default(cuid())
+  title      String
+  department String
+  province   Province
+  type       EmploymentType
+  salaryMin  Int
+  salaryMax  Int
+  status     ReqStatus      @default(DRAFT)
+  applicants Int            @default(0)
+  openedDate DateTime
+  candidates Candidate[]
+}
+
+model Candidate {
+  id            String         @id @default(cuid())
+  requisition   Requisition?   @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  requisitionId String?
+  name          String
+  role          String
+  stage         CandidateStage @default(APPLIED)
+  matchScore    Int
+  appliedDate   DateTime
+  interviewDate DateTime?
+  strengths     String[]
+  gaps          String[]
+
+  @@index([requisitionId])
+}
+
+/* -------------------------- Performance ---------------------------- */
+
+enum ReviewState {
+  DRAFT
+  SELF_EVALUATION
+  MANAGER_EVALUATION
+  CALIBRATED
+  COMPLETED
+}
+
+enum PipState {
+  DRAFT
+  ACTIVE
+  COMPLETED
+}
+
+model PerformanceReview {
+  id         String      @id @default(cuid())
+  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  cycle      String
+  state      ReviewState @default(DRAFT)
+  score      Float?
+  due        DateTime
+
+  @@index([employeeId])
+}
+
+model Pip {
+  id              String   @id @default(cuid())
+  employeeName    String
+  employeeId      String?
+  manager         String
+  durationDays    Int
+  state           PipState @default(DRAFT)
+  signedByManager Boolean  @default(false)
+  signedByEmployee Boolean @default(false)
+  startDate       DateTime
+}
+
+/* ---------------------------- Training ----------------------------- */
+
+model TrainingCourse {
+  id        String    @id @default(cuid())
+  title     String
+  category  String
+  progress  Int       @default(0)
+  mandatory Boolean   @default(false)
+  province  Province?
+  due       DateTime?
+}
+
+/* --------------------------- Offboarding --------------------------- */
+
+enum OffboardingOwner {
+  MANAGER
+  IT_OPS
+  HR_PAYROLL
+}
+
+model OffboardingTask {
+  id       String           @id @default(cuid())
+  label    String
+  owner    OffboardingOwner
+  status   TaskStatus       @default(PENDING)
+  blocking Boolean          @default(false)
+}
+
+/* ---------------------------- Benefits ----------------------------- */
+
+enum CarrierStatus {
+  CONNECTED
+  FILE_BASED
+  NOT_CONNECTED
+}
+
+enum CarrierMethod {
+  API
+  CSV_SFTP
+}
+
+model BenefitsCarrier {
+  id       String        @id @default(cuid())
+  name     String
+  status   CarrierStatus
+  enrolled Int           @default(0)
+  method   CarrierMethod
+  lastSync String
+}
+
+/* ----------------------------- Agents ------------------------------ */
+
+enum AgentStatus {
+  RUNNING
+  AWAITING_APPROVAL
+  COMPLETED
+}
+
+model AgentRun {
+  id       String      @id @default(cuid())
+  intent   String
+  status   AgentStatus
+  progress Int         @default(0)
+  affected Int         @default(0)
+  summary  String
+  time     String
+}
+
+/* --------------------------- Documents ----------------------------- */
+
+enum DocAccess {
+  EMPLOYEE
+  MANAGER
+  HR_ADMIN
+  SUPER_ADMIN
+}
+
+model VaultDocument {
+  id         String    @id @default(cuid())
+  name       String
+  type       String
+  folder     String
+  access     DocAccess
+  uploaded   DateTime
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  employeeId String?
+
+  @@index([employeeId])
+}
+
+/* -------------------------- Benchmarks ----------------------------- */
+
+model SalaryBenchmark {
+  id      String @id @default(cuid())
+  role    String
+  low     Int
+  high    Int
+  current Int
+}
+
+/* ----------------------------- Settings ---------------------------- */
+
+// Single-row company configuration (id is always "default").
+model CompanySettings {
+  id               String   @id @default("default")
+  companyName      String   @default("TestHR Inc.")
+  provinces        String[]
+  integrations     Json // { google: bool, m365: bool, slack: bool, sharepoint: bool, esign: bool, wagepoint: bool, payworks: bool, quickbooks: bool }
+  recognitionPublic Boolean @default(true)
+  updatedAt        DateTime @updatedAt
+}
+
+model OnboardingCase {
+  id               String          @id @default(cuid())
+  token            String          @unique
+  name             String
+  title            String
+  department       String
+  province         Province
+  startDate        DateTime
+  personalEmail    String
+  status           CaseStatus      @default(INVITED)
+  forms            Json
+  policiesAttached String[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  checklist        ChecklistTask[]
+  documents        CaseDocument[]
+  consent          ConsentEntry[]
+  auditLog         AuditEntry[]
+}
+
+model ChecklistTask {
+  id         String         @id @default(cuid())
+  case       OnboardingCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId     String
+  label      String
+  owner      TaskOwner
+  status     TaskStatus     @default(PENDING)
+  blocking   Boolean        @default(false)
+  dataAccess DataAccess     @default(GENERAL)
+  order      Int            @default(0)
+
+  @@index([caseId])
+}
+
+model CaseDocument {
+  id       String         @id @default(cuid())
+  case     OnboardingCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId   String
+  name     String
+  type     String
+  folder   String
+  status   DocStatus      @default(NEEDS_VERIFICATION)
+  signedAt DateTime?
+  signedBy String?
+  ip       String?
+
+  @@index([caseId])
+}
+
+model ConsentEntry {
+  id        String         @id @default(cuid())
+  case      OnboardingCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId    String
+  policy    String
+  version   String
+  timestamp DateTime       @default(now())
+  ip        String
+
+  @@index([caseId])
+}
+
+model AuditEntry {
+  id     String         @id @default(cuid())
+  case   OnboardingCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId String
+  at     DateTime       @default(now())
+  event  String
+
+  @@index([caseId])
+}
