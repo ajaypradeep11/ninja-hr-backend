@@ -14,8 +14,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "dotenv -e .env -- prisma migrate deploy",
     "db:up": "docker compose up -d --wait",
-    "db:down": "docker compose down",
-    "db:seed": "dotenv -e .env -- tsx prisma/seed.ts"
+    "db:down": "docker compose down"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
