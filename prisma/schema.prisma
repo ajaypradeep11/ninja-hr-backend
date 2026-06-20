@@ -76,6 +76,7 @@ model Employee {
   manager       String?
   status        EmployeeStatus      @default(ACTIVE)
   salary        Int
+  avatar        String?
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   leaveRequests LeaveRequest[]
