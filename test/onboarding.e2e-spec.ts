@@ -8,15 +8,22 @@ import { InternalKeyGuard } from '../src/platform/auth/internal-key.guard';
 
 describe('Onboarding (e2e)', () => {
   let app: INestApplication;
-  const key = process.env.INTERNAL_API_KEY ?? 'dev-internal-key';
+  let key: string;
 
   beforeAll(async () => {
+    key = process.env.INTERNAL_API_KEY ?? 'dev-internal-key';
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalGuards(new InternalKeyGuard(app.get(Reflector)));
     await app.init();
+    await request(app.getHttpServer())
+      .post('/api/v1/onboarding/cases')
+      .set('x-internal-key', key)
+      .set('x-actor-persona', 'admin')
+      .send({ name: 'E2E Seed', province: 'ON', startDate: '2026-08-01', personalEmail: 'e2e-seed@test.com' })
+      .expect(201);
   });
   afterAll(async () => { await app.close(); });
 
@@ -31,10 +38,9 @@ describe('Onboarding (e2e)', () => {
       .set('x-actor-persona', 'admin')
       .expect(200);
     expect(Array.isArray(res.body)).toBe(true);
-    if (res.body.length) {
-      const c = res.body[0];
-      expect(['Invited', 'Forms In Progress', 'Pending Verification', 'Ready to Activate', 'Active']).toContain(c.status);
-    }
+    expect(res.body.length).toBeGreaterThan(0);
+    const c = res.body[0];
+    expect(['Invited', 'Forms In Progress', 'Pending Verification', 'Ready to Activate', 'Active']).toContain(c.status);
   });
 
   it('creates a case and returns Invited status', async () => {
