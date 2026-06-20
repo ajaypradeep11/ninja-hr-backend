@@ -1,7 +1,6 @@
 // src/contexts/onboarding/application/commands/activate.command.ts
-import { CommandHandler, ICommandHandler, EventBus } from '@nestjs/cqrs';
+import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { OnboardingRepository } from '../../infrastructure/onboarding.repository';
-import { CaseActivatedEvent } from '../events/case-activated.event';
 import type { OnboardingCase } from '../../domain/onboarding.types';
 
 export class ActivateCommand {
@@ -10,10 +9,10 @@ export class ActivateCommand {
 
 @CommandHandler(ActivateCommand)
 export class ActivateHandler implements ICommandHandler<ActivateCommand, OnboardingCase | null> {
-  constructor(private readonly repo: OnboardingRepository, private readonly events: EventBus) {}
+  constructor(private readonly repo: OnboardingRepository) {}
   async execute({ id }: ActivateCommand): Promise<OnboardingCase | null> {
     await this.repo.setStatus(id, 'Active');
-    this.events.publish(new CaseActivatedEvent(id));
+    await this.repo.addAudit(id, 'Account activated — payroll set to Active, SSO provisioned');
     return this.repo.findById(id);
   }
 }

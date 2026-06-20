@@ -14,7 +14,6 @@ import { SetTaskStatusHandler } from './application/commands/set-task-status.com
 import { VerifyDocumentHandler } from './application/commands/verify-document.command';
 import { TogglePolicyHandler } from './application/commands/toggle-policy.command';
 import { ActivateHandler } from './application/commands/activate.command';
-import { CaseActivatedHandler } from './application/events/case-activated.handler';
 
 @Module({
   imports: [CqrsModule],
@@ -24,7 +23,6 @@ import { CaseActivatedHandler } from './application/events/case-activated.handle
     ListCasesHandler, GetPipelineHandler,
     CreateCaseHandler, MarkFormHandler, AddConsentHandler, FinalizeSubmissionHandler,
     SetChecklistHandler, SetTaskStatusHandler, VerifyDocumentHandler, TogglePolicyHandler, ActivateHandler,
-    CaseActivatedHandler,
   ],
 })
 export class OnboardingModule {}

@@ -53,4 +53,27 @@ describe('Onboarding (e2e)', () => {
     expect(res.body.status).toBe('Invited');
     expect(res.body.checklist.length).toBeGreaterThan(0);
   });
+
+  it('activation audit entry is present in the returned case', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/api/v1/onboarding/cases')
+      .set('x-internal-key', key)
+      .set('x-actor-persona', 'admin')
+      .send({ name: 'E2E Activate', province: 'ON', startDate: '2026-08-01', personalEmail: 'e2e-activate@test.com' })
+      .expect(201);
+    const id = createRes.body.id;
+
+    const activateRes = await request(app.getHttpServer())
+      .post(`/api/v1/onboarding/cases/${id}/activate`)
+      .set('x-internal-key', key)
+      .set('x-actor-persona', 'admin');
+    expect([200, 201]).toContain(activateRes.status);
+
+    expect(activateRes.body.status).toBe('Active');
+    expect(Array.isArray(activateRes.body.auditLog)).toBe(true);
+    const hasActivationAudit = activateRes.body.auditLog.some(
+      (entry: { event: string }) => entry.event.includes('Account activated'),
+    );
+    expect(hasActivationAudit).toBe(true);
+  });
 });
