@@ -31,6 +31,5 @@ export function rowToEmployee(row: any): Employee {
     manager: row.manager ?? undefined,
     status: empStatusFromDb[row.status as keyof typeof empStatusFromDb],
     salary: row.salary,
-    avatar: row.avatar ?? undefined,
   };
 }
