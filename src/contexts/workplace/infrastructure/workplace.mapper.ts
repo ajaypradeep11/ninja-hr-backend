@@ -2,6 +2,7 @@
 import type {
   CourseStatus,
   DocAccess,
+  LetterTemplate,
   VaultDocument,
   TrainingCourse,
   TrainingAssignment,
@@ -71,6 +72,17 @@ export function rowToTrainingCourse(row: any): TrainingCourse {
       ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
         row.assignments.filter((a: any) => a.status === 'COMPLETED').length
       : undefined,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function rowToLetterTemplate(row: any): LetterTemplate {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    body: row.body,
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 

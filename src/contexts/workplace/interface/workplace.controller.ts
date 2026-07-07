@@ -21,11 +21,21 @@ import {
   UpdatePeerCourseCommand,
 } from '../application/training.handlers';
 import {
+  CreateLetterTemplateCommand,
+  DeleteLetterTemplateCommand,
+  GetLetterTemplatesQuery,
+  IssueLetterCommand,
+  UpdateLetterTemplateCommand,
+} from '../application/letters.handlers';
+import {
   AssignTrainingDto,
   CreateCourseDto,
+  IssueLetterDto,
+  LetterTemplateDto,
   PeerCourseDto,
   UpdateAssignmentDto,
   UpdateCourseDto,
+  UpdateLetterTemplateDto,
   UpdatePeerCourseDto,
 } from './dto/workplace.dto';
 
@@ -40,6 +50,39 @@ export class WorkplaceController {
   @Get('documents')
   getVaultDocuments() {
     return this.queries.execute(new GetVaultDocumentsQuery());
+  }
+
+  /* ---------------------- Letter Lab (HR letters) -------------------- */
+
+  @Get('letter-templates')
+  @Roles('HR_ADMIN')
+  getLetterTemplates() {
+    return this.queries.execute(new GetLetterTemplatesQuery());
+  }
+
+  @Post('letter-templates')
+  @Roles('HR_ADMIN')
+  createLetterTemplate(@Body() body: LetterTemplateDto) {
+    return this.commands.execute(new CreateLetterTemplateCommand(body));
+  }
+
+  @Patch('letter-templates/:id')
+  @Roles('HR_ADMIN')
+  updateLetterTemplate(@Param('id') id: string, @Body() body: UpdateLetterTemplateDto) {
+    return this.commands.execute(new UpdateLetterTemplateCommand(id, body));
+  }
+
+  @Delete('letter-templates/:id')
+  @Roles('HR_ADMIN')
+  deleteLetterTemplate(@Param('id') id: string) {
+    return this.commands.execute(new DeleteLetterTemplateCommand(id));
+  }
+
+  /** File a generated letter into the employee's vault (save / e-signature). */
+  @Post('letters/issue')
+  @Roles('HR_ADMIN')
+  issueLetter(@Body() body: IssueLetterDto) {
+    return this.commands.execute(new IssueLetterCommand(body));
   }
 
   /* ------------------------- Training catalog ------------------------ */

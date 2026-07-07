@@ -46,6 +46,28 @@ export class UpdatePeerCourseDto {
   @ApiProperty({ required: false }) @IsOptional() @IsIn([true, false]) submit?: boolean;
 }
 
+export class LetterTemplateDto {
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(120) name!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(60) category!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(20000) body!: string;
+}
+
+export class UpdateLetterTemplateDto {
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @IsNotEmpty() @MaxLength(120) name?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @IsNotEmpty() @MaxLength(60) category?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @IsNotEmpty() @MaxLength(20000) body?: string;
+}
+
+const LETTER_MODES = ['save', 'signature'] as const;
+
+export class IssueLetterDto {
+  @ApiProperty() @IsString() @IsNotEmpty() employeeId!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(160) name!: string;
+  @ApiProperty({ enum: LETTER_MODES }) @IsIn(LETTER_MODES as unknown as string[]) mode!:
+    | 'save'
+    | 'signature';
+}
+
 export class AssignTrainingDto {
   @ApiProperty() @IsString() @IsNotEmpty() courseId!: string;
   @ApiProperty({ type: [String] }) @IsArray() @IsString({ each: true }) employeeIds!: string[];

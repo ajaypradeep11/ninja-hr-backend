@@ -19,6 +19,13 @@ import {
   UpdatePeerCourseHandler,
   DeletePeerCourseHandler,
 } from './application/training.handlers';
+import {
+  CreateLetterTemplateHandler,
+  DeleteLetterTemplateHandler,
+  GetLetterTemplatesHandler,
+  IssueLetterHandler,
+  UpdateLetterTemplateHandler,
+} from './application/letters.handlers';
 
 @Module({
   imports: [CqrsModule],
@@ -29,16 +36,21 @@ import {
     GetTrainingCoursesHandler,
     CreateCourseHandler,
     UpdateCourseHandler,
-  GetMyCoursesHandler,
-  CreatePeerCourseHandler,
-  UpdatePeerCourseHandler,
-  DeletePeerCourseHandler,
+    GetMyCoursesHandler,
+    CreatePeerCourseHandler,
+    UpdatePeerCourseHandler,
+    DeletePeerCourseHandler,
     DeleteCourseHandler,
     AssignTrainingHandler,
     GetAllAssignmentsHandler,
     GetCourseAssignmentsHandler,
     GetMyTrainingHandler,
     UpdateAssignmentHandler,
+    GetLetterTemplatesHandler,
+    CreateLetterTemplateHandler,
+    UpdateLetterTemplateHandler,
+    DeleteLetterTemplateHandler,
+    IssueLetterHandler,
   ],
 })
 export class WorkplaceModule {}

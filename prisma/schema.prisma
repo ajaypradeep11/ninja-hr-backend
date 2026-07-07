@@ -849,3 +849,35 @@ model Kudos {
 
   @@index([toId])
 }
+
+/* -------------------- Letter Lab & Calculator Engine ------------------- */
+
+/// HR document template with {{variable}} placeholders (Letter Lab).
+model LetterTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  category  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum CalcCategory {
+  TIMESHEET
+  ACCRUAL
+  BONUS
+}
+
+/// One row of the custom calculation rules engine:
+/// IF <field> <operator> <threshold> THEN <action> <value>.
+model CalcRule {
+  id        String       @id @default(cuid())
+  category  CalcCategory
+  field     String
+  operator  String
+  threshold Float
+  action    String
+  value     Float
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+}

@@ -10,11 +10,15 @@ import type {
   CreateCourseInput,
   AssignTrainingInput,
   PeerCourseInput,
+  LetterTemplate,
+  LetterTemplateInput,
+  IssueLetterInput,
 } from '../domain/workplace.types';
 import {
   rowToVaultDocument,
   rowToTrainingCourse,
   rowToTrainingAssignment,
+  rowToLetterTemplate,
   trainingStatusToDb,
   courseStatusToDb,
 } from './workplace.mapper';
@@ -29,6 +33,56 @@ export class WorkplaceRepository {
   async getVaultDocuments(): Promise<VaultDocument[]> {
     const rows = await this.prisma.vaultDocument.findMany({ orderBy: { uploaded: 'desc' } });
     return rows.map(rowToVaultDocument);
+  }
+
+  /* ---------------------- Letter Lab (HR letters) -------------------- */
+
+  async getLetterTemplates(): Promise<LetterTemplate[]> {
+    const rows = await this.prisma.letterTemplate.findMany({ orderBy: { name: 'asc' } });
+    return rows.map(rowToLetterTemplate);
+  }
+
+  async createLetterTemplate(input: LetterTemplateInput): Promise<LetterTemplate[]> {
+    await this.prisma.letterTemplate.create({ data: input });
+    return this.getLetterTemplates();
+  }
+
+  async updateLetterTemplate(
+    id: string,
+    input: Partial<LetterTemplateInput>,
+  ): Promise<LetterTemplate[]> {
+    await this.prisma.letterTemplate.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.category !== undefined ? { category: input.category } : {}),
+        ...(input.body !== undefined ? { body: input.body } : {}),
+      },
+    });
+    return this.getLetterTemplates();
+  }
+
+  async deleteLetterTemplate(id: string): Promise<LetterTemplate[]> {
+    await this.prisma.letterTemplate.delete({ where: { id } });
+    return this.getLetterTemplates();
+  }
+
+  /** File a generated letter into the employee's vault (Documents tab).
+   *  `signature` mode marks it as awaiting e-signature. */
+  async issueLetter(input: IssueLetterInput): Promise<VaultDocument> {
+    const emp = await this.prisma.employee.findUnique({ where: { id: input.employeeId } });
+    if (!emp) throw new NotFoundException('Employee not found');
+    const created = await this.prisma.vaultDocument.create({
+      data: {
+        name: input.name,
+        type: input.mode === 'signature' ? 'Letter — Awaiting Signature' : 'Letter',
+        folder: '05_HR_Letters',
+        access: 'EMPLOYEE',
+        uploaded: new Date(),
+        employeeId: emp.id,
+      },
+    });
+    return rowToVaultDocument(created);
   }
 
   /* ------------------------- Training catalog ------------------------ */

@@ -71,3 +71,27 @@ export interface AssignTrainingInput {
   employeeIds: string[];
   dueDate?: string;
 }
+
+/* ----------------------- Letter Lab (HR letters) -------------------- */
+
+/** HR document template with {{variable}} placeholders. */
+export interface LetterTemplate {
+  id: string;
+  name: string;
+  category: string;
+  body: string;
+  updatedAt: string; // ISO datetime
+}
+
+export interface LetterTemplateInput {
+  name: string;
+  category: string;
+  body: string;
+}
+
+/** File a generated letter into the employee's document vault. */
+export interface IssueLetterInput {
+  employeeId: string;
+  name: string;
+  mode: 'save' | 'signature';
+}

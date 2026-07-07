@@ -10,6 +10,12 @@ import { AskCopilotHandler } from './application/queries/ask-copilot.query';
 import { SaveSettingsHandler } from './application/commands/save-settings.command';
 import { CreateAgentRunHandler } from './application/commands/create-agent-run.command';
 import { SetAgentRunStatusHandler } from './application/commands/set-agent-run-status.command';
+import {
+  CreateCalcRuleHandler,
+  DeleteCalcRuleHandler,
+  GetCalcRulesHandler,
+  UpdateCalcRuleHandler,
+} from './application/calc.handlers';
 
 @Module({
   imports: [CqrsModule],
@@ -23,6 +29,10 @@ import { SetAgentRunStatusHandler } from './application/commands/set-agent-run-s
     SaveSettingsHandler,
     CreateAgentRunHandler,
     SetAgentRunStatusHandler,
+    GetCalcRulesHandler,
+    CreateCalcRuleHandler,
+    UpdateCalcRuleHandler,
+    DeleteCalcRuleHandler,
   ],
 })
 export class PlatformModule {}

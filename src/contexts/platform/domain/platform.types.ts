@@ -41,3 +41,30 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   },
   recognitionPublic: true,
 };
+
+/* -------------------- Custom Calculator Engine --------------------- */
+
+export type CalcCategory = 'Timesheet' | 'Accrual' | 'Bonus';
+export type CalcOperator = '>' | '>=' | '<' | '<=' | '=';
+
+/** One rule: IF <field> <operator> <threshold> THEN <action> <value>. */
+export interface CalcRule {
+  id: string;
+  category: CalcCategory;
+  field: string;
+  operator: CalcOperator;
+  threshold: number;
+  action: string;
+  value: number;
+  active: boolean;
+}
+
+export interface CalcRuleInput {
+  category: CalcCategory;
+  field: string;
+  operator: CalcOperator;
+  threshold: number;
+  action: string;
+  value: number;
+  active?: boolean;
+}

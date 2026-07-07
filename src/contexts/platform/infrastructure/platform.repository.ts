@@ -1,9 +1,21 @@
 // src/contexts/platform/infrastructure/platform.repository.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/platform/database/prisma.service';
-import type { CompanySettings, AgentRun, AgentStatus } from '../domain/platform.types';
+import type {
+  CompanySettings,
+  AgentRun,
+  AgentStatus,
+  CalcRule,
+  CalcRuleInput,
+} from '../domain/platform.types';
 import { DEFAULT_SETTINGS } from '../domain/platform.types';
-import { agentStatusToDb, rowToAgentRun, settingsRowToDto } from './platform.mapper';
+import {
+  agentStatusToDb,
+  calcCategoryToDb,
+  rowToAgentRun,
+  rowToCalcRule,
+  settingsRowToDto,
+} from './platform.mapper';
 
 @Injectable()
 export class PlatformRepository {
@@ -66,5 +78,50 @@ export class PlatformRepository {
       },
     });
     return this.getAgentRuns();
+  }
+
+  /* -------------------- Custom Calculator Engine --------------------- */
+
+  async getCalcRules(): Promise<CalcRule[]> {
+    const rows = await this.prisma.calcRule.findMany({ orderBy: { createdAt: 'asc' } });
+    return rows.map(rowToCalcRule);
+  }
+
+  async createCalcRule(input: CalcRuleInput): Promise<CalcRule[]> {
+    await this.prisma.calcRule.create({
+      data: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        category: calcCategoryToDb[input.category] as any,
+        field: input.field,
+        operator: input.operator,
+        threshold: input.threshold,
+        action: input.action,
+        value: input.value,
+        active: input.active ?? true,
+      },
+    });
+    return this.getCalcRules();
+  }
+
+  async updateCalcRule(id: string, input: Partial<CalcRuleInput>): Promise<CalcRule[]> {
+    await this.prisma.calcRule.update({
+      where: { id },
+      data: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...(input.category !== undefined ? { category: calcCategoryToDb[input.category] as any } : {}),
+        ...(input.field !== undefined ? { field: input.field } : {}),
+        ...(input.operator !== undefined ? { operator: input.operator } : {}),
+        ...(input.threshold !== undefined ? { threshold: input.threshold } : {}),
+        ...(input.action !== undefined ? { action: input.action } : {}),
+        ...(input.value !== undefined ? { value: input.value } : {}),
+        ...(input.active !== undefined ? { active: input.active } : {}),
+      },
+    });
+    return this.getCalcRules();
+  }
+
+  async deleteCalcRule(id: string): Promise<CalcRule[]> {
+    await this.prisma.calcRule.delete({ where: { id } });
+    return this.getCalcRules();
   }
 }

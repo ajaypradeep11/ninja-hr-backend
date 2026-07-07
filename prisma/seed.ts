@@ -396,6 +396,109 @@ async function seedGrowth(): Promise<void> {
   }
 }
 
+/* --------------------- Letter Lab & Calculator Engine ------------------ */
+
+const SEED_LETTERS = [
+  {
+    name: 'Standard Offer Letter',
+    category: 'Offer',
+    body: `Dear {{employee_name}},
+
+We are delighted to offer you the position of {{title}} in our {{department}} department, starting {{start_date}}.
+
+Your annual salary will be {{salary}}, and you will report to {{manager_name}}. This offer is contingent on the terms outlined in your employment agreement, governed by the Ontario Employment Standards Act, 2000.
+
+We look forward to welcoming you to the team.
+
+Sincerely,
+{{company}} People Operations`,
+  },
+  {
+    name: '90-Day Probation Pass',
+    category: 'Probation',
+    body: `Dear {{employee_name}},
+
+Congratulations! We are pleased to confirm that you have successfully completed your 90-day probationary period as {{title}} effective {{today}}.
+
+Your manager, {{manager_name}}, and the People team have been impressed with your contributions to {{department}}. Your employment now continues under the full terms of your agreement.
+
+Warm regards,
+{{company}} People Operations`,
+  },
+  {
+    name: 'Promotion Letter',
+    category: 'Promotion',
+    body: `Dear {{employee_name}},
+
+We are thrilled to confirm your promotion to {{title}}, effective {{today}}.
+
+This promotion reflects your outstanding performance in {{department}}. Your updated compensation is {{salary}} per annum. {{manager_name}} will review your new responsibilities with you this week.
+
+Congratulations on this well-deserved step.
+
+Sincerely,
+{{company}} People Operations`,
+  },
+  {
+    name: 'Termination Notice',
+    category: 'Termination',
+    body: `Dear {{employee_name}},
+
+This letter confirms that your employment with {{company}} as {{title}} will end effective {{today}}.
+
+You will receive all statutory entitlements under the Ontario Employment Standards Act, 2000, including any owed wages, vacation pay, and notice or pay in lieu. Please contact People Operations regarding the return of company property and your Record of Employment.
+
+We thank you for your contributions and wish you well.
+
+Sincerely,
+{{company}} People Operations`,
+  },
+];
+
+async function seedLetterLab(): Promise<void> {
+  for (const t of SEED_LETTERS) {
+    const existing = await prisma.letterTemplate.findFirst({ where: { name: t.name } });
+    if (!existing) {
+      await prisma.letterTemplate.create({ data: t });
+      console.log(`letter template: ${t.name}`);
+    }
+  }
+}
+
+async function seedCalcRules(): Promise<void> {
+  if ((await prisma.calcRule.count()) > 0) return;
+  await prisma.calcRule.createMany({
+    data: [
+      // Ontario ESA: overtime after 44 hours/week at 1.5x.
+      {
+        category: 'TIMESHEET',
+        field: 'Total Weekly Hours',
+        operator: '>',
+        threshold: 44,
+        action: 'Multiply Base Rate',
+        value: 1.5,
+      },
+      {
+        category: 'ACCRUAL',
+        field: 'Hours Worked',
+        operator: '>=',
+        threshold: 1,
+        action: 'Accrue Vacation %',
+        value: 4,
+      },
+      {
+        category: 'BONUS',
+        field: 'Total Weekly Hours',
+        operator: '>=',
+        threshold: 50,
+        action: 'Add Flat Bonus $',
+        value: 100,
+      },
+    ],
+  });
+  console.log('calc rules: 3 defaults seeded');
+}
+
 /* -------------------------------- Main -------------------------------- */
 
 async function main(): Promise<void> {
@@ -404,6 +507,8 @@ async function main(): Promise<void> {
   await seedHris();
   await seedTraining();
   await seedGrowth();
+  await seedLetterLab();
+  await seedCalcRules();
 }
 
 main()
