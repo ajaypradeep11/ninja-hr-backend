@@ -1,26 +1,16 @@
 // src/contexts/workplace/infrastructure/workplace.mapper.ts
-import type { BenefitsCarrier, CarrierStatus, CarrierMethod, DocAccess, VaultDocument, TrainingCourse } from '../domain/workplace.types';
+import type {
+  CourseStatus,
+  DocAccess,
+  VaultDocument,
+  TrainingCourse,
+  TrainingAssignment,
+  TrainingStatus,
+} from '../domain/workplace.types';
 
 function invert<K extends string, V extends string>(m: Record<K, V>): Record<V, K> {
   return Object.fromEntries(Object.entries(m).map(([k, v]) => [v, k])) as Record<V, K>;
 }
-
-/* Carrier status */
-export const carrierStatusToDb = {
-  Connected: 'CONNECTED',
-  'File-based': 'FILE_BASED',
-  'Not connected': 'NOT_CONNECTED',
-} satisfies Record<CarrierStatus, string>;
-
-export const carrierStatusFromDb = invert(carrierStatusToDb);
-
-/* Carrier method */
-export const carrierMethodToDb = {
-  API: 'API',
-  'CSV / SFTP': 'CSV_SFTP',
-} satisfies Record<CarrierMethod, string>;
-
-export const carrierMethodFromDb = invert(carrierMethodToDb);
 
 /* Document access */
 export const docAccessToDb = {
@@ -36,18 +26,6 @@ const iso = (d: Date): string => d.toISOString().slice(0, 10);
 
 /* Row mappers */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function rowToBenefitsCarrier(row: any): BenefitsCarrier {
-  return {
-    id: row.id,
-    name: row.name,
-    status: carrierStatusFromDb[row.status as keyof typeof carrierStatusFromDb],
-    enrolled: row.enrolled,
-    method: carrierMethodFromDb[row.method as keyof typeof carrierMethodFromDb],
-    lastSync: row.lastSync,
-  };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function rowToVaultDocument(row: any): VaultDocument {
   return {
     id: row.id,
@@ -59,15 +37,57 @@ export function rowToVaultDocument(row: any): VaultDocument {
   };
 }
 
+export const trainingStatusToDb = {
+  Assigned: 'ASSIGNED',
+  'In-Progress': 'IN_PROGRESS',
+  Completed: 'COMPLETED',
+} satisfies Record<TrainingStatus, string>;
+export const trainingStatusFromDb = invert(trainingStatusToDb);
+
+export const courseStatusToDb = {
+  Draft: 'DRAFT',
+  'Pending HR Approval': 'PENDING_APPROVAL',
+  Published: 'PUBLISHED',
+  Rejected: 'REJECTED',
+} satisfies Record<CourseStatus, string>;
+export const courseStatusFromDb = invert(courseStatusToDb);
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function rowToTrainingCourse(row: any): TrainingCourse {
   return {
     id: row.id,
     title: row.title,
     category: row.category,
+    description: row.description ?? undefined,
+    contentUrl: row.contentUrl ?? undefined,
+    durationMins: row.durationMins ?? undefined,
+    passMark: row.passMark ?? undefined,
+    active: row.active,
+    status: courseStatusFromDb[row.status as keyof typeof courseStatusFromDb] ?? 'Published',
+    createdById: row.createdById ?? undefined,
+    creatorName: row.createdBy?.name ?? undefined,
+    assignedCount: row._count?.assignments,
+    completedCount: row.assignments
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        row.assignments.filter((a: any) => a.status === 'COMPLETED').length
+      : undefined,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function rowToTrainingAssignment(row: any): TrainingAssignment {
+  return {
+    id: row.id,
+    courseId: row.courseId,
+    courseTitle: row.course.title,
+    courseCategory: row.course.category,
+    contentUrl: row.course.contentUrl ?? undefined,
+    employeeId: row.employeeId,
+    employeeName: row.employee.name,
+    status: trainingStatusFromDb[row.status as keyof typeof trainingStatusFromDb],
     progress: row.progress,
-    mandatory: row.mandatory,
-    province: row.province ?? undefined,
-    due: row.due ? iso(row.due) : undefined,
+    assignedAt: iso(row.assignedAt),
+    dueDate: row.dueDate ? iso(row.dueDate) : undefined,
+    completedAt: row.completedAt ? iso(row.completedAt) : undefined,
   };
 }

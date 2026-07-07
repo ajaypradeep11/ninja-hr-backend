@@ -1,52 +1,13 @@
 // src/contexts/workplace/infrastructure/workplace.mapper.spec.ts
 import {
-  carrierStatusToDb,
-  carrierStatusFromDb,
-  carrierMethodToDb,
-  carrierMethodFromDb,
   docAccessToDb,
   docAccessFromDb,
-  rowToBenefitsCarrier,
   rowToVaultDocument,
   rowToTrainingCourse,
+  rowToTrainingAssignment,
 } from './workplace.mapper';
 
 describe('workplace enum maps', () => {
-  describe('carrierStatus', () => {
-    it('round-trips File-based', () => {
-      expect(carrierStatusToDb['File-based']).toBe('FILE_BASED');
-      expect(carrierStatusFromDb['FILE_BASED']).toBe('File-based');
-    });
-
-    it('round-trips Not connected', () => {
-      expect(carrierStatusToDb['Not connected']).toBe('NOT_CONNECTED');
-      expect(carrierStatusFromDb['NOT_CONNECTED']).toBe('Not connected');
-    });
-
-    it('round-trips all three statuses', () => {
-      const statuses = ['Connected', 'File-based', 'Not connected'] as const;
-      for (const s of statuses) {
-        const db = carrierStatusToDb[s];
-        expect(carrierStatusFromDb[db]).toBe(s);
-      }
-    });
-  });
-
-  describe('carrierMethod', () => {
-    it('round-trips CSV / SFTP', () => {
-      expect(carrierMethodToDb['CSV / SFTP']).toBe('CSV_SFTP');
-      expect(carrierMethodFromDb['CSV_SFTP']).toBe('CSV / SFTP');
-    });
-
-    it('round-trips all methods', () => {
-      const methods = ['API', 'CSV / SFTP'] as const;
-      for (const m of methods) {
-        const db = carrierMethodToDb[m];
-        expect(carrierMethodFromDb[db]).toBe(m);
-      }
-    });
-  });
-
   describe('docAccess', () => {
     it('round-trips HR Admin', () => {
       expect(docAccessToDb['HR Admin']).toBe('HR_ADMIN');
@@ -67,20 +28,6 @@ describe('workplace enum maps', () => {
     });
   });
 
-  describe('rowToBenefitsCarrier', () => {
-    it('maps a connected carrier row correctly', () => {
-      const row = { id: 'b1', name: 'Sun Life', status: 'CONNECTED', enrolled: 38, method: 'API', lastSync: '2026-06-17' };
-      const result = rowToBenefitsCarrier(row);
-      expect(result).toEqual({ id: 'b1', name: 'Sun Life', status: 'Connected', enrolled: 38, method: 'API', lastSync: '2026-06-17' });
-    });
-
-    it('maps a file-based carrier row correctly', () => {
-      const row = { id: 'b2', name: 'Manulife', status: 'FILE_BASED', enrolled: 0, method: 'CSV_SFTP', lastSync: '2026-06-15' };
-      const result = rowToBenefitsCarrier(row);
-      expect(result).toEqual({ id: 'b2', name: 'Manulife', status: 'File-based', enrolled: 0, method: 'CSV / SFTP', lastSync: '2026-06-15' });
-    });
-  });
-
   describe('rowToVaultDocument', () => {
     it('maps a document row and formats uploaded date', () => {
       const row = { id: 'v1', name: 'Offer Letter.pdf', folder: '02_Onboarding', type: 'Offer Letter', uploaded: new Date('2026-04-10T00:00:00.000Z'), access: 'EMPLOYEE' };
@@ -97,24 +44,56 @@ describe('workplace enum maps', () => {
   });
 
   describe('rowToTrainingCourse', () => {
-    it('maps a course with optional province and due date', () => {
-      const row = { id: 't1', title: 'WHMIS 2015', category: 'Health & Safety', progress: 0, mandatory: true, province: null, due: new Date('2026-06-30T00:00:00.000Z') };
+    it('maps a company course catalog row', () => {
+      const row = {
+        id: 't1',
+        title: 'WHMIS 2015',
+        category: 'Health & Safety',
+        description: 'Hazardous materials.',
+        contentUrl: 'https://example.com/whmis',
+        durationMins: 45,
+        passMark: 80,
+        active: true,
+      };
       const result = rowToTrainingCourse(row);
-      expect(result.due).toBe('2026-06-30');
-      expect(result.province).toBeUndefined();
+      expect(result.title).toBe('WHMIS 2015');
+      expect(result.durationMins).toBe(45);
+      expect(result.active).toBe(true);
     });
 
-    it('maps a course with no due date', () => {
-      const row = { id: 't2', title: 'EDI Training', category: 'Culture', progress: 60, mandatory: false, province: null, due: null };
+    it('surfaces assignment counts when included', () => {
+      const row = {
+        id: 't2',
+        title: 'Security',
+        category: 'Security',
+        active: true,
+        _count: { assignments: 3 },
+        assignments: [{ status: 'COMPLETED' }, { status: 'ASSIGNED' }, { status: 'COMPLETED' }],
+      };
       const result = rowToTrainingCourse(row);
-      expect(result.due).toBeUndefined();
-      expect(result.province).toBeUndefined();
+      expect(result.assignedCount).toBe(3);
+      expect(result.completedCount).toBe(2);
     });
+  });
 
-    it('maps province when present', () => {
-      const row = { id: 't3', title: 'AODA', category: 'Compliance', progress: 100, mandatory: true, province: 'ON', due: null };
-      const result = rowToTrainingCourse(row);
-      expect(result.province).toBe('ON');
+  describe('rowToTrainingAssignment', () => {
+    it('maps an assignment with friendly status', () => {
+      const row = {
+        id: 'a1',
+        courseId: 't1',
+        course: { title: 'WHMIS', category: 'Health & Safety', contentUrl: null },
+        employeeId: 'e1',
+        employee: { name: 'Jane Doe' },
+        status: 'IN_PROGRESS',
+        progress: 40,
+        assignedAt: new Date('2026-07-01T00:00:00Z'),
+        dueDate: new Date('2026-08-31T00:00:00Z'),
+        completedAt: null,
+      };
+      const result = rowToTrainingAssignment(row);
+      expect(result.status).toBe('In-Progress');
+      expect(result.courseTitle).toBe('WHMIS');
+      expect(result.dueDate).toBe('2026-08-31');
     });
   });
 });

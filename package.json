@@ -13,6 +13,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "dotenv -e .env -- prisma migrate deploy",
+    "db:seed": "dotenv -e .env -- prisma db seed",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down"
   },

@@ -1,4 +1,5 @@
 // src/contexts/onboarding/application/commands/toggle-policy.command.ts
+import { NotFoundException } from '@nestjs/common';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { OnboardingRepository } from '../../infrastructure/onboarding.repository';
 import { settle } from '../onboarding.settle';
@@ -13,7 +14,7 @@ export class TogglePolicyHandler implements ICommandHandler<TogglePolicyCommand,
   constructor(private readonly repo: OnboardingRepository) {}
   async execute({ id, policy }: TogglePolicyCommand): Promise<OnboardingCase | null> {
     const c = await this.repo.findById(id);
-    if (!c) return null;
+    if (!c) throw new NotFoundException(`Onboarding case ${id} not found`);
     const policiesAttached = c.policiesAttached.includes(policy)
       ? c.policiesAttached.filter((p) => p !== policy)
       : [...c.policiesAttached, policy];

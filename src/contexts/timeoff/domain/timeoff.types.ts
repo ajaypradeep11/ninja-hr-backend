@@ -6,17 +6,22 @@ export type LeaveType =
   | 'Sick Leave'
   | 'Personal'
   | 'Parental'
-  | 'Bereavement';
+  | 'Bereavement'
+  | 'Overtime';
 
 export type LeaveStatus = 'Pending' | 'Approved' | 'Denied';
 
 export interface LeaveRequest {
   id: string;
   employee: string;
+  /** Routing key: pending requests go to this department's manager. */
+  department: string;
   type: LeaveType;
   start: string; // ISO date YYYY-MM-DD
   end: string;   // ISO date YYYY-MM-DD
   status: LeaveStatus;
   province: ProvinceCode;
   days: number;
+  /** Partial-day request: hours taken on `start` (1–7). Undefined = full day(s). */
+  hours?: number;
 }

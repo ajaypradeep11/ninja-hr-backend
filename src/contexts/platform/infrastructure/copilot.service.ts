@@ -1,12 +1,12 @@
 // src/contexts/platform/infrastructure/copilot.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import type { Persona } from 'src/platform/auth/actor.decorator';
 
-const KEY = process.env.ANTHROPIC_API_KEY;
-
-function hasLiveKey(): boolean {
-  return !!KEY && KEY.startsWith('sk-ant-');
+// Read at call time (not import time) so keys set/rotated after boot are
+// honored; presence-only check — the SDK is the authority on validity.
+function liveKey(): string | undefined {
+  return process.env.ANTHROPIC_API_KEY || undefined;
 }
 
 const SYSTEM_BASE = `You are the HR Co-Pilot for TestHR, an agentic HR platform for the Canadian market.
@@ -36,11 +36,14 @@ export interface CoPilotResult {
 
 @Injectable()
 export class CopilotService {
+  private readonly logger = new Logger(CopilotService.name);
+
   async askCoPilot(question: string, persona: Persona): Promise<CoPilotResult> {
-    if (!hasLiveKey()) return { text: '', live: false };
+    const apiKey = liveKey();
+    if (!apiKey) return { text: '', live: false };
 
     try {
-      const client = new Anthropic();
+      const client = new Anthropic({ apiKey });
       const response = await client.messages.create({
         model: 'claude-opus-4-8',
         max_tokens: 1024,
@@ -53,7 +56,10 @@ export class CopilotService {
         .join('')
         .trim();
       return { text: text || '', live: true };
-    } catch {
+    } catch (err) {
+      // Degrade to offline mode, but leave an operator signal — a revoked key
+      // or rate limit must not be silently indistinguishable from "no key".
+      this.logger.error(`Anthropic API call failed: ${err instanceof Error ? err.message : String(err)}`);
       return { text: '', live: false };
     }
   }

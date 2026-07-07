@@ -12,6 +12,7 @@ export const leaveTypeToDb = {
   Personal: 'PERSONAL',
   Parental: 'PARENTAL',
   Bereavement: 'BEREAVEMENT',
+  Overtime: 'OVERTIME',
 } satisfies Record<LeaveType, string>;
 
 export const leaveTypeFromDb = invert(leaveTypeToDb);
@@ -31,11 +32,13 @@ export function rowToLeaveRequest(row: any): LeaveRequest {
   return {
     id: row.id,
     employee: row.employee.name,
+    department: row.employee.department,
     type: leaveTypeFromDb[row.type as keyof typeof leaveTypeFromDb],
     start: iso(row.start),
     end: iso(row.end),
     status: leaveStatusFromDb[row.status as keyof typeof leaveStatusFromDb],
     province: row.employee.province as ProvinceCode,
     days: row.days,
+    hours: row.hours ?? undefined,
   };
 }

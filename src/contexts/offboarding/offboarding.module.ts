@@ -5,6 +5,7 @@ import { OffboardingController } from './interface/offboarding.controller';
 import { OffboardingRepository } from './infrastructure/offboarding.repository';
 import { GetOffboardingTasksHandler } from './application/queries/get-offboarding-tasks.query';
 import { SetOffboardingTaskStatusHandler } from './application/commands/set-offboarding-task-status.command';
+import { SetOffboardingAssigneeHandler } from './application/commands/set-offboarding-assignee.command';
 import { FinalizeTerminationHandler } from './application/commands/finalize-termination.command';
 
 @Module({
@@ -14,6 +15,7 @@ import { FinalizeTerminationHandler } from './application/commands/finalize-term
     OffboardingRepository,
     GetOffboardingTasksHandler,
     SetOffboardingTaskStatusHandler,
+    SetOffboardingAssigneeHandler,
     FinalizeTerminationHandler,
   ],
 })

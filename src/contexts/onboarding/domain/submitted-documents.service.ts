@@ -7,17 +7,18 @@ function hash(s: string): number {
   return h;
 }
 
-export function generateSubmittedDocuments(c: OnboardingCase): CaseDocument[] {
-  const today = c.startDate;
+export function generateSubmittedDocuments(c: OnboardingCase, ip?: string): CaseDocument[] {
+  const signedAt = new Date().toISOString();
   const sign = (name: string, type: string, needsVerify = false): CaseDocument => ({
     id: `doc_${Math.abs(hash(name + c.id))}`,
     name,
     type,
     folder: '02_Onboarding_and_Tax',
     status: needsVerify ? 'Needs Verification' : 'Verified',
-    signedAt: today,
+    hasFile: false,
+    signedAt,
     signedBy: c.name,
-    ip: '203.0.113.42',
+    ip: ip || undefined,
   });
   return [
     sign('TD1 Federal 2026 (signed).pdf', 'TD1 Form'),

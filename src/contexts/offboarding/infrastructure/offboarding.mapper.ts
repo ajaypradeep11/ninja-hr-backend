@@ -29,5 +29,6 @@ export function rowToTask(row: any): OffboardingTask {
     owner: ownerFromDb[row.owner as keyof typeof ownerFromDb],
     status: statusFromDb[row.status as keyof typeof statusFromDb],
     blocking: row.blocking,
+    assignee: row.assignee ?? undefined,
   };
 }

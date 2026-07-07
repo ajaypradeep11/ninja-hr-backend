@@ -1,6 +1,5 @@
 // src/contexts/onboarding/domain/onboarding-status.ts
 import type { OnboardingCase, FormFlags, ChecklistTask } from './onboarding.types';
-import { mandatoryPolicies } from './checklist.service';
 
 export function formProgress(forms: FormFlags): number {
   const vals = Object.values(forms);
@@ -27,18 +26,19 @@ export function activationGates(c: OnboardingCase): Gate[] {
   const blockingTasks = c.checklist.filter((t) => t.blocking);
   const blockingDone = blockingTasks.filter((t) => t.status === 'Completed');
   const unverified = c.documents.filter((d) => d.status === 'Needs Verification');
-  const required = mandatoryPolicies(c.province);
-  const missingPolicies = required.filter((p) => !c.policiesAttached.includes(p));
   const formsDone = formProgress(c.forms) === 100;
 
+  // Policy attachment is no longer an activation condition — policy
+  // acknowledgment is handled by the employee's handbook consent step.
   return [
     { ok: formsDone, label: 'Employee completed all onboarding forms' },
     {
-      ok: blockingTasks.length > 0 && blockingDone.length === blockingTasks.length,
+      // Vacuously true when the checklist has no blocking tasks — otherwise a
+      // checklist edited to contain zero blocking tasks can never activate.
+      ok: blockingDone.length === blockingTasks.length,
       label: `Blocking checklist tasks complete (${blockingDone.length}/${blockingTasks.length})`,
     },
     { ok: unverified.length === 0, label: 'All documents verified by HR (human-in-the-loop)' },
-    { ok: missingPolicies.length === 0, label: `Provincial mandatory policies attached (${c.province})` },
   ];
 }
 
@@ -47,7 +47,12 @@ export function canActivate(c: OnboardingCase): boolean {
 }
 
 export function nextStatus(c: OnboardingCase): import('./onboarding.types').CaseStatus {
-  if (c.status === 'Active' || c.status === 'Invited') return c.status;
+  if (c.status === 'Active') return 'Active';
+  if (c.status === 'Invited') {
+    // Invited moves to Forms In Progress as soon as the employee starts the
+    // wizard; it never skips ahead — finalize is what advances past forms.
+    return Object.values(c.forms).some(Boolean) ? 'Forms In Progress' : 'Invited';
+  }
   const formsDone = Object.values(c.forms).every(Boolean);
   if (!formsDone) return 'Forms In Progress';
   return canActivate(c) ? 'Ready to Activate' : 'Pending Verification';

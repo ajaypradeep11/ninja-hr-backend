@@ -64,6 +64,20 @@ enum DocStatus {
   VERIFIED
 }
 
+enum PayFrequency {
+  WEEKLY
+  BIWEEKLY
+  SEMIMONTHLY
+  MONTHLY
+}
+
+enum WorkEligibility {
+  CITIZEN
+  PERMANENT_RESIDENT
+  WORK_PERMIT
+  STUDY_PERMIT
+}
+
 model Employee {
   id            String              @id @default(cuid())
   name          String
@@ -78,9 +92,79 @@ model Employee {
   salary        Int
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
+  // --- HRIS record (Canadian) ---
+  employeeNumber   String?          @unique
+  preferredName    String?
+  pronouns         String?
+  personalEmail    String?
+  phone            String?
+  addressStreet    String?
+  addressCity      String?
+  addressProvince  Province?
+  addressPostal    String?
+  employmentType   EmploymentType?
+  workLocation     String?
+  payFrequency     PayFrequency?
+  workEligibility  WorkEligibility?
+  workPermitExpiry DateTime?
+  td1FederalOnFile    Boolean       @default(false)
+  td1ProvincialOnFile Boolean       @default(false)
+  sin              String?          // sensitive — never returned raw (masked in mapper)
+  bankInstitution  String?
+  bankTransit      String?
+  bankAccount      String?          // sensitive — masked
+  // --- relations ---
   leaveRequests LeaveRequest[]
   reviews       PerformanceReview[]
   documents     VaultDocument[]
+  user          User?
+  emergencyContacts   EmergencyContact[]
+  trainingAssignments TrainingAssignment[]
+  requisitionsCreated Requisition[]         @relation("RequisitionCreator")
+  approvals           RequisitionApproval[] @relation("RequisitionApprover")
+  hiringTeams         HiringTeamMember[]    @relation("HiringTeamEmployee")
+  scorecards          ScorecardSubmission[] @relation("ScorecardPanelist")
+  communicationsSent  CommunicationLog[]    @relation("CommunicationSender")
+  notesAuthored       CandidateNote[]       @relation("CandidateNoteAuthor")
+  coursesCreated      TrainingCourse[]      @relation("CourseCreator")
+  goals               Goal[]                @relation("GoalOwner")
+  oneOnOnes           OneOnOne[]            @relation("SyncEmployee")
+  feedbackSent        FeedbackRequest[]     @relation("FeedbackRequester")
+  feedbackReceived    FeedbackRequest[]     @relation("FeedbackColleague")
+  kudosGiven          Kudos[]               @relation("KudosFrom")
+  kudosReceived       Kudos[]               @relation("KudosTo")
+}
+
+model EmergencyContact {
+  id           String   @id @default(cuid())
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId   String
+  name         String
+  relationship String
+  phone        String
+  altPhone     String?
+  email        String?
+  isPrimary    Boolean  @default(false)
+
+  @@index([employeeId])
+}
+
+/* ---------------------------- Identity ----------------------------- */
+
+enum Role {
+  HR_ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+// Demo-auth identity: a switchable "login" linked 1:1 to an Employee.
+// Role gating is enforced by the backend; only the login screen is simulated.
+model User {
+  id         String   @id @default(cuid())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String   @unique
+  role       Role     @default(EMPLOYEE)
+  createdAt  DateTime @default(now())
 }
 
 /* ------------------------------ Leave ------------------------------ */
@@ -91,6 +175,7 @@ enum LeaveType {
   PERSONAL
   PARENTAL
   BEREAVEMENT
+  OVERTIME
 }
 
 enum LeaveStatus {
@@ -108,6 +193,8 @@ model LeaveRequest {
   end        DateTime
   status     LeaveStatus @default(PENDING)
   days       Int
+  /// Partial-day request: hours taken on `start` (1–7). Null = full day(s).
+  hours      Int?
 
   @@index([employeeId])
 }
@@ -136,34 +223,294 @@ enum CandidateStage {
   REJECTED
 }
 
+enum ApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CandidateSource {
+  CAREERS
+  INDEED
+  LINKEDIN
+}
+
+enum TemplateTrigger {
+  APPLICATION_RECEIVED
+  INTERVIEW_SCHEDULED
+  REJECTED
+  MANUAL
+}
+
+enum Recommendation {
+  STRONG_YES
+  YES
+  NO
+  STRONG_NO
+}
+
+enum ResumeParseStatus {
+  PENDING
+  PARSED
+  FAILED
+  SKIPPED
+}
+
+enum ScorecardStatus {
+  DRAFT
+  SUBMITTED
+}
+
 model Requisition {
-  id         String         @id @default(cuid())
-  title      String
-  department String
-  province   Province
-  type       EmploymentType
-  salaryMin  Int
-  salaryMax  Int
-  status     ReqStatus      @default(DRAFT)
-  applicants Int            @default(0)
-  openedDate DateTime
-  candidates Candidate[]
+  id                String         @id @default(cuid())
+  title             String
+  department        String
+  province          Province
+  type              EmploymentType
+  salaryMin         Int
+  salaryMax         Int
+  status            ReqStatus      @default(DRAFT)
+  applicants        Int            @default(0)
+  openedDate        DateTime
+  jd                String?
+  slug              String?        @unique
+  publishedAt       DateTime?
+  createdBy         Employee?      @relation("RequisitionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById       String?
+  rejectionFeedback String?
+  costOfHire        Int?
+  archivedAt        DateTime?
+  indeedEnabled     Boolean        @default(false)
+  linkedinEnabled   Boolean        @default(false)
+  /// Admin-controlled Blind Hiring: when on, non-HR viewers get server-scrubbed
+  /// candidate identities ("Candidate #n") across pipeline + detail views.
+  blindHiring       Boolean        @default(false)
+  indeedUrl         String?
+  linkedinUrl       String?
+  candidates        Candidate[]
+  approvals         RequisitionApproval[]
+  hiringTeam        HiringTeamMember[]
+  preScreenQuestions PreScreenQuestion[]
+  scorecardCriteria ScorecardCriterion[]
+  auditEvents       RecruitmentAuditEvent[]
+}
+
+model RequisitionApproval {
+  id            String           @id @default(cuid())
+  requisition   Requisition      @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  requisitionId String
+  approver      Employee         @relation("RequisitionApprover", fields: [approverId], references: [id], onDelete: Cascade)
+  approverId    String
+  decision      ApprovalDecision @default(PENDING)
+  comment       String?
+  decidedAt     DateTime?
+
+  @@unique([requisitionId, approverId])
+  @@index([requisitionId])
+  @@index([approverId])
+}
+
+model HiringTeamMember {
+  id            String      @id @default(cuid())
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  requisitionId String
+  employee      Employee    @relation("HiringTeamEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId    String
+  isPanelMember Boolean     @default(false)
+
+  @@unique([requisitionId, employeeId])
+  @@index([requisitionId])
+  @@index([employeeId])
+}
+
+model PreScreenQuestion {
+  id            String      @id @default(cuid())
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  requisitionId String
+  order         Int         @default(0)
+  question      String
+  required      Boolean     @default(true)
+  answers       PreScreenAnswer[]
+
+  @@index([requisitionId])
 }
 
 model Candidate {
-  id            String         @id @default(cuid())
-  requisition   Requisition?   @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  id            String          @id @default(cuid())
+  requisition   Requisition?    @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
   requisitionId String?
   name          String
   role          String
-  stage         CandidateStage @default(APPLIED)
-  matchScore    Int
-  appliedDate   DateTime
+  stage         CandidateStage  @default(APPLIED)
+  matchScore    Int             @default(0)
+  appliedDate   DateTime        @default(now())
   interviewDate DateTime?
   strengths     String[]
   gaps          String[]
+  email         String?
+  resumeText    String?
+  source        CandidateSource @default(CAREERS)
+  portalToken   String?         @unique
+  consentAt     DateTime?
+  consentVersion String?
+  withdrawnAt   DateTime?
+  anonymizedAt  DateTime?
+  answers       PreScreenAnswer[]
+  communications CommunicationLog[]
+  scorecards    ScorecardSubmission[]
+  auditEvents   RecruitmentAuditEvent[]
+  resume        CandidateResume?
+  notes         CandidateNote[]
 
   @@index([requisitionId])
+}
+
+// Resume file + AI-parsed data. Separate 1:1 so candidate list queries never
+// pull the (potentially large) binary. Part of the application record.
+model CandidateResume {
+  id                String            @id @default(cuid())
+  candidate         Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId       String            @unique
+  fileName          String
+  mimeType          String
+  data              Bytes
+  parsedPhone       String?
+  parsedSkills      String[]
+  parsedWorkHistory Json?
+  parseStatus       ResumeParseStatus @default(PENDING)
+  parsedAt          DateTime?
+  createdAt         DateTime          @default(now())
+}
+
+// Internal hiring-team notes — the Candidate Evaluation Profile discussion.
+// STRICTLY internal: never read by any candidate-facing / external code path.
+model CandidateNote {
+  id          String    @id @default(cuid())
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId String
+  author      Employee? @relation("CandidateNoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  authorId    String?
+  body        String
+  createdAt   DateTime  @default(now())
+
+  @@index([candidateId])
+}
+
+model PreScreenAnswer {
+  id          String            @id @default(cuid())
+  candidate   Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId String
+  question    PreScreenQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionId  String
+  answer      String
+
+  @@unique([candidateId, questionId])
+}
+
+model CommunicationTemplate {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  subject   String
+  body      String
+  trigger   TemplateTrigger @default(MANUAL)
+  isDefault Boolean         @default(false)
+  logs      CommunicationLog[]
+}
+
+model CommunicationLog {
+  id                 String                 @id @default(cuid())
+  candidate          Candidate              @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId        String
+  template           CommunicationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateId         String?
+  subject            String
+  body               String
+  sentAt             DateTime               @default(now())
+  sentBy             Employee?              @relation("CommunicationSender", fields: [sentById], references: [id], onDelete: SetNull)
+  sentById           String?
+  visibleToCandidate Boolean                @default(true)
+  /// Two-way mailbox: INBOUND rows are candidate replies captured via the
+  /// inbound-email webhook (sentById stays null — the sender is the candidate).
+  direction          CommDirection          @default(OUTBOUND)
+  /// Raw From address on inbound mail, for provenance.
+  fromAddress        String?
+
+  @@index([candidateId])
+}
+
+enum CommDirection {
+  OUTBOUND
+  INBOUND
+}
+
+// Company-wide standard interview guide — the template every NEW requisition
+// inherits as its scorecard criteria. Edited by HR at /admin/recruitment/interview-guide;
+// per-requisition copies can then be tailored independently.
+model GuideTemplateSection {
+  id       String  @id @default(cuid())
+  name     String
+  weight   Int?
+  /// Guiding questions/prompts shown to interviewers under this section.
+  guidance String?
+  order    Int
+}
+
+model ScorecardCriterion {
+  id            String      @id @default(cuid())
+  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  requisitionId String
+  name          String
+  weight        Int?
+  /// Guiding questions/prompts shown to interviewers under this section.
+  guidance      String?
+  order         Int         @default(0)
+  ratings       ScorecardRating[]
+
+  @@index([requisitionId])
+}
+
+model ScorecardSubmission {
+  id             String         @id @default(cuid())
+  candidate      Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId    String
+  panelist       Employee       @relation("ScorecardPanelist", fields: [panelistId], references: [id], onDelete: Cascade)
+  panelistId     String
+  recommendation Recommendation
+  overallNotes   String?
+  status         ScorecardStatus @default(DRAFT)
+  interviewDate  DateTime?
+  submittedAt    DateTime       @default(now())
+  ratings        ScorecardRating[]
+
+  @@unique([candidateId, panelistId])
+  @@index([candidateId])
+}
+
+model ScorecardRating {
+  id           String              @id @default(cuid())
+  submission   ScorecardSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  submissionId String
+  criterion    ScorecardCriterion  @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  criterionId  String
+  rating       Int
+  notes        String?
+
+  @@unique([submissionId, criterionId])
+}
+
+model RecruitmentAuditEvent {
+  id            String       @id @default(cuid())
+  requisition   Requisition? @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  requisitionId String?
+  candidate     Candidate?   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  candidateId   String?
+  actorId       String?
+  event         String
+  detail        String?
+  at            DateTime     @default(now())
+
+  @@index([requisitionId])
+  @@index([candidateId])
 }
 
 /* -------------------------- Performance ---------------------------- */
@@ -208,14 +555,53 @@ model Pip {
 
 /* ---------------------------- Training ----------------------------- */
 
+enum TrainingStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// Company-created training catalog (no province-mandated content). HR builds
+// courses and assigns them to employees.
 model TrainingCourse {
-  id        String    @id @default(cuid())
-  title     String
-  category  String
-  progress  Int       @default(0)
-  mandatory Boolean   @default(false)
-  province  Province?
-  due       DateTime?
+  id          String               @id @default(cuid())
+  title       String
+  category    String
+  description String?
+  contentUrl  String?
+  durationMins Int?
+  passMark    Int?
+  active      Boolean              @default(true)
+  /// Peer-created courses flow DRAFT → PENDING_APPROVAL → PUBLISHED/REJECTED.
+  /// HR-authored catalog courses are PUBLISHED from birth.
+  status      CourseStatus         @default(PUBLISHED)
+  createdBy   Employee?            @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdAt   DateTime             @default(now())
+  assignments TrainingAssignment[]
+}
+
+enum CourseStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  REJECTED
+}
+
+model TrainingAssignment {
+  id          String         @id @default(cuid())
+  course      TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    String
+  employee    Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId  String
+  status      TrainingStatus @default(ASSIGNED)
+  progress    Int            @default(0)
+  assignedAt  DateTime       @default(now())
+  dueDate     DateTime?
+  completedAt DateTime?
+
+  @@unique([courseId, employeeId])
+  @@index([employeeId])
 }
 
 /* --------------------------- Offboarding --------------------------- */
@@ -232,28 +618,8 @@ model OffboardingTask {
   owner    OffboardingOwner
   status   TaskStatus       @default(PENDING)
   blocking Boolean          @default(false)
-}
-
-/* ---------------------------- Benefits ----------------------------- */
-
-enum CarrierStatus {
-  CONNECTED
-  FILE_BASED
-  NOT_CONNECTED
-}
-
-enum CarrierMethod {
-  API
-  CSV_SFTP
-}
-
-model BenefitsCarrier {
-  id       String        @id @default(cuid())
-  name     String
-  status   CarrierStatus
-  enrolled Int           @default(0)
-  method   CarrierMethod
-  lastSync String
+  /// Internal employee delegated to own this task (HR delegation). Name only.
+  assignee String?
 }
 
 /* ----------------------------- Agents ------------------------------ */
@@ -329,6 +695,11 @@ model OnboardingCase {
   personalEmail    String
   status           CaseStatus      @default(INVITED)
   forms            Json
+  /// Standard new-hire form (Ontario) submitted via the preboarding portal.
+  /// Contains SIN/banking — NEVER returned raw: the mapper masks on read.
+  profile          Json?
+  /// Per-department task ownership: { "HR": "Sarah Mitchell", "Finance": … }.
+  taskAssignees    Json?
   policiesAttached String[]
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
@@ -363,6 +734,11 @@ model CaseDocument {
   signedAt DateTime?
   signedBy String?
   ip       String?
+  /// Uploaded file (preboarding portal). Queries must SELECT-exclude `data`
+  /// so case lists never drag binaries — the file streams via its own route.
+  mimeType String?
+  size     Int?
+  data     Bytes?
 
   @@index([caseId])
 }
@@ -387,4 +763,89 @@ model AuditEntry {
   event  String
 
   @@index([caseId])
+}
+
+/* ------------------- Continuous performance (growth) ------------------- */
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum FeedbackRequestStatus {
+  PENDING
+  COMPLETED
+}
+
+model Goal {
+  id         String       @id @default(cuid())
+  employee   Employee     @relation("GoalOwner", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  title      String
+  /// Company strategy this goal ladders up to (e.g. "Q2 Global Revenue Target")
+  alignment  String?
+  progress   Int          @default(0)
+  due        DateTime?
+  status     GoalStatus   @default(ACTIVE)
+  updates    GoalUpdate[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([employeeId])
+}
+
+model GoalUpdate {
+  id        String   @id @default(cuid())
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  goalId    String
+  progress  Int
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([goalId])
+}
+
+model OneOnOne {
+  id          String   @id @default(cuid())
+  employee    Employee @relation("SyncEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId  String
+  managerName String
+  scheduledAt DateTime
+  /// [{id, author, text}] — shared agenda both sides append to
+  talkingPoints Json   @default("[]")
+  /// [{id, text, done}] — carried over from the previous meeting
+  actionItems   Json   @default("[]")
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId])
+}
+
+model FeedbackRequest {
+  id          String                @id @default(cuid())
+  requester   Employee              @relation("FeedbackRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  requesterId String
+  colleague   Employee              @relation("FeedbackColleague", fields: [colleagueId], references: [id], onDelete: Cascade)
+  colleagueId String
+  topic       String
+  message     String?
+  status      FeedbackRequestStatus @default(PENDING)
+  response    String?
+  createdAt   DateTime              @default(now())
+  respondedAt DateTime?
+
+  @@index([requesterId])
+  @@index([colleagueId])
+}
+
+model Kudos {
+  id        String    @id @default(cuid())
+  from      Employee? @relation("KudosFrom", fields: [fromId], references: [id], onDelete: SetNull)
+  fromId    String?
+  to        Employee  @relation("KudosTo", fields: [toId], references: [id], onDelete: Cascade)
+  toId      String
+  message   String
+  emoji     String?
+  createdAt DateTime  @default(now())
+
+  @@index([toId])
 }

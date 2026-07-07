@@ -18,8 +18,6 @@ export interface Integrations {
   slack: boolean;
   sharepoint: boolean;
   esign: boolean;
-  wagepoint: boolean;
-  payworks: boolean;
   quickbooks: boolean;
 }
 
@@ -39,8 +37,6 @@ export const DEFAULT_SETTINGS: CompanySettings = {
     slack: true,
     sharepoint: true,
     esign: false,
-    wagepoint: false,
-    payworks: false,
     quickbooks: true,
   },
   recognitionPublic: true,

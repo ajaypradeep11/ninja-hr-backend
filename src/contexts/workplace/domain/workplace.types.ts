@@ -1,17 +1,6 @@
 // src/contexts/workplace/domain/workplace.types.ts
 
-export type CarrierStatus = 'Connected' | 'File-based' | 'Not connected';
-export type CarrierMethod = 'API' | 'CSV / SFTP';
 export type DocAccess = 'Employee' | 'Manager' | 'HR Admin' | 'Super Admin';
-
-export interface BenefitsCarrier {
-  id: string;
-  name: string;
-  status: CarrierStatus;
-  enrolled: number;
-  method: CarrierMethod;
-  lastSync: string;
-}
 
 export interface VaultDocument {
   id: string;
@@ -22,12 +11,63 @@ export interface VaultDocument {
   access: DocAccess;
 }
 
+export type TrainingStatus = 'Assigned' | 'In-Progress' | 'Completed';
+
+export type CourseStatus = 'Draft' | 'Pending HR Approval' | 'Published' | 'Rejected';
+
+/** Training course — HR catalog entries are born Published; peer-created
+ *  courses flow Draft → Pending HR Approval → Published/Rejected. */
 export interface TrainingCourse {
   id: string;
   title: string;
   category: string;
+  description?: string;
+  contentUrl?: string;
+  durationMins?: number;
+  passMark?: number;
+  active: boolean;
+  status: CourseStatus;
+  createdById?: string;
+  creatorName?: string;
+  assignedCount?: number;
+  completedCount?: number;
+}
+
+/** What an employee may set on their own peer-created course. */
+export interface PeerCourseInput {
+  title: string;
+  category: string;
+  description?: string;
+  contentUrl?: string;
+  durationMins?: number;
+}
+
+export interface TrainingAssignment {
+  id: string;
+  courseId: string;
+  courseTitle: string;
+  courseCategory: string;
+  contentUrl?: string;
+  employeeId: string;
+  employeeName: string;
+  status: TrainingStatus;
   progress: number;
-  mandatory: boolean;
-  province?: string;
-  due?: string; // ISO-10 date YYYY-MM-DD, optional
+  assignedAt: string;
+  dueDate?: string;
+  completedAt?: string;
+}
+
+export interface CreateCourseInput {
+  title: string;
+  category: string;
+  description?: string;
+  contentUrl?: string;
+  durationMins?: number;
+  passMark?: number;
+}
+
+export interface AssignTrainingInput {
+  courseId: string;
+  employeeIds: string[];
+  dueDate?: string;
 }

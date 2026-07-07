@@ -7,7 +7,7 @@ const ready: OnboardingCase = {
   startDate: '2026-07-01', personalEmail: 'a@b.com', status: 'Pending Verification', createdAt: '2026-06-01',
   forms: { personal: true, td1: true, directDeposit: true, benefits: true, handbook: true },
   checklist: [{ id: 't', label: 'x', owner: 'HR', status: 'Completed', blocking: true, dataAccess: 'general' }],
-  documents: [], consent: [],
+  documents: [], consent: [], taskAssignees: {},
   policiesAttached: ['AODA Awareness Training', 'Workplace Violence & Harassment Policy', 'Health & Safety Awareness (Ontario)'],
   auditLog: [],
 };

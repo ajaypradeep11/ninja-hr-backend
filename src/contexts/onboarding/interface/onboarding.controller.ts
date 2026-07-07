@@ -1,5 +1,6 @@
 // src/contexts/onboarding/interface/onboarding.controller.ts
-import { Body, Controller, Get, Param, Patch, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Param, Patch, Post, Put, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ListCasesQuery } from '../application/queries/list-cases.query';
@@ -13,7 +14,14 @@ import { SetTaskStatusCommand } from '../application/commands/set-task-status.co
 import { VerifyDocumentCommand } from '../application/commands/verify-document.command';
 import { TogglePolicyCommand } from '../application/commands/toggle-policy.command';
 import { ActivateCommand } from '../application/commands/activate.command';
-import { NewCaseDto, PolicyDto, TaskStatusDto, ChecklistDto } from './dto/onboarding.dto';
+import { SubmitProfileCommand } from '../application/commands/submit-profile.command';
+import { UploadCaseDocumentCommand } from '../application/commands/upload-case-document.command';
+import { GetCaseDocumentFileQuery, type CaseDocumentFile } from '../application/queries/get-case-document-file.query';
+import { SetTaskAssigneeCommand } from '../application/commands/set-task-assignee.command';
+import {
+  NewCaseDto, NewHireProfileDto, PolicyDto, TaskStatusDto, ChecklistDto, UploadCaseDocumentDto,
+  SetTaskAssigneeDto,
+} from './dto/onboarding.dto';
 import type { FormFlags } from '../domain/onboarding.types';
 
 @ApiTags('onboarding')
@@ -41,19 +49,61 @@ export class OnboardingController {
     return this.commands.execute(new MarkFormCommand(token, key));
   }
 
+  /** Standard new-hire form (Ontario) — validated, stored, SIN/bank masked on read. */
+  @Post('cases/by-token/:token/profile')
+  submitProfile(@Param('token') token: string, @Body() body: NewHireProfileDto) {
+    return this.commands.execute(new SubmitProfileCommand(token, body));
+  }
+
+  /**
+   * Preboarding document upload (TD1/TD1ON, benefits enrollment, manual ack).
+   * Auto-routes into the case's Documents + HR verification queue.
+   */
+  @Post('cases/by-token/:token/documents')
+  uploadDocument(@Param('token') token: string, @Body() body: UploadCaseDocumentDto) {
+    return this.commands.execute(
+      new UploadCaseDocumentCommand(token, body.kind, body.fileName, body.mimeType, body.dataBase64),
+    );
+  }
+
+  /** Download an uploaded preboarding file (HR verification). */
+  @Get('cases/:id/documents/:docId/file')
+  async downloadDocument(
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+    @Res() res: Response,
+  ) {
+    const file = (await this.queries.execute(new GetCaseDocumentFileQuery(id, docId))) as CaseDocumentFile;
+    // Header values must be Latin-1: ASCII fallback + RFC 5987 encoded original
+    // (document names contain em dashes).
+    const ascii = file.name.replace(/"/g, '').replace(/[^\x20-\x7E]/g, '-');
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    );
+    res.send(file.data);
+  }
+
   @Post('cases/by-token/:token/consent')
-  addConsent(@Param('token') token: string, @Body() body: PolicyDto) {
-    return this.commands.execute(new AddConsentCommand(token, body.policy));
+  addConsent(@Param('token') token: string, @Body() body: PolicyDto, @Ip() ip: string) {
+    return this.commands.execute(new AddConsentCommand(token, body.policy, ip));
   }
 
   @Post('cases/by-token/:token/finalize')
-  finalize(@Param('token') token: string) {
-    return this.commands.execute(new FinalizeSubmissionCommand(token));
+  finalize(@Param('token') token: string, @Ip() ip: string) {
+    return this.commands.execute(new FinalizeSubmissionCommand(token, ip));
   }
 
   @Put('cases/:id/checklist')
   setChecklist(@Param('id') id: string, @Body() body: ChecklistDto) {
     return this.commands.execute(new SetChecklistCommand(id, body.tasks));
+  }
+
+  /** Assign an internal employee to own a department's task block. */
+  @Patch('cases/:id/assignees')
+  setTaskAssignee(@Param('id') id: string, @Body() body: SetTaskAssigneeDto) {
+    return this.commands.execute(new SetTaskAssigneeCommand(id, body.owner, body.employeeName));
   }
 
   @Patch('cases/:id/tasks/:taskId')

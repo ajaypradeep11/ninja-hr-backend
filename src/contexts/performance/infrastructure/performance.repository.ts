@@ -1,5 +1,5 @@
 // src/contexts/performance/infrastructure/performance.repository.ts
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/platform/database/prisma.service';
 import type { PerformanceReview, Pip } from '../domain/performance.types';
 import {
@@ -38,29 +38,37 @@ export class PerformanceRepository {
 
   async advanceReviewState(id: string): Promise<PerformanceReview[]> {
     const raw = await this.prisma.performanceReview.findUnique({ where: { id } });
-    if (raw) {
-      const currentLabel =
-        reviewStateFromDb[raw.state as keyof typeof reviewStateFromDb];
-      const next = nextReviewState(currentLabel);
-      await this.prisma.performanceReview.update({
-        where: { id },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data: { state: reviewStateToDb[next] as any },
-      });
-    }
+    if (!raw) throw new NotFoundException(`Performance review ${id} not found`);
+    const currentLabel =
+      reviewStateFromDb[raw.state as keyof typeof reviewStateFromDb];
+    const next = nextReviewState(currentLabel);
+    // Guarded write: only advances if the state is still what we read, so two
+    // racing requests cannot skip a stage.
+    await this.prisma.performanceReview.updateMany({
+      where: { id, state: raw.state },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: { state: reviewStateToDb[next] as any },
+    });
     return this.getReviews();
   }
 
   async issuePip(input: NewPipInput): Promise<Pip[]> {
+    const employeeName = input.employee.trim();
+    if (!employeeName) throw new BadRequestException('PIP employee name is required');
+    // Link to the employee record when one matches; keep the name either way.
+    const emp = await this.prisma.employee.findFirst({ where: { name: employeeName } });
     await this.prisma.pip.create({
       data: {
-        employeeName: input.employee,
+        employeeName,
+        employeeId: emp?.id ?? null,
         manager: input.manager,
         durationDays: input.durationDays,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         state: pipStateToDb['Active'] as any,
+        // The issuing manager signs at creation; the employee's acknowledgment
+        // must never be fabricated — it stays false until they actually sign.
         signedByManager: true,
-        signedByEmployee: true,
+        signedByEmployee: false,
         startDate: new Date(),
       },
     });

@@ -10,4 +10,6 @@ export interface OffboardingTask {
   owner: OffboardingOwner;
   status: OffboardingStatus;
   blocking: boolean;
+  /** Internal employee delegated to own this task (name only). */
+  assignee?: string;
 }

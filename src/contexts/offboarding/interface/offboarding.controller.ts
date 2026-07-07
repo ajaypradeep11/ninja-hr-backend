@@ -4,8 +4,13 @@ import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetOffboardingTasksQuery } from '../application/queries/get-offboarding-tasks.query';
 import { SetOffboardingTaskStatusCommand } from '../application/commands/set-offboarding-task-status.command';
+import { SetOffboardingAssigneeCommand } from '../application/commands/set-offboarding-assignee.command';
 import { FinalizeTerminationCommand } from '../application/commands/finalize-termination.command';
-import { SetTaskStatusDto, FinalizeTerminationDto } from './dto/offboarding.dto';
+import {
+  SetTaskStatusDto,
+  SetOffboardingAssigneeDto,
+  FinalizeTerminationDto,
+} from './dto/offboarding.dto';
 
 @ApiTags('offboarding')
 @Controller('offboarding')
@@ -25,9 +30,17 @@ export class OffboardingController {
     return this.commands.execute(new SetOffboardingTaskStatusCommand(id, body.status));
   }
 
+  /** Delegate a department's separation tasks to an internal owner. */
+  @Patch('assignees')
+  setAssignee(@Body() body: SetOffboardingAssigneeDto) {
+    return this.commands.execute(
+      new SetOffboardingAssigneeCommand(body.owner, body.assignee ?? null),
+    );
+  }
+
   @Post('terminate')
   @HttpCode(200)
   finalizeTermination(@Body() body: FinalizeTerminationDto) {
-    return this.commands.execute(new FinalizeTerminationCommand(body.employeeName));
+    return this.commands.execute(new FinalizeTerminationCommand(body.employeeName, body.override ?? false));
   }
 }

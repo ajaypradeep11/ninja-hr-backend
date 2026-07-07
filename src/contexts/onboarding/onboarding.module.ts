@@ -14,6 +14,10 @@ import { SetTaskStatusHandler } from './application/commands/set-task-status.com
 import { VerifyDocumentHandler } from './application/commands/verify-document.command';
 import { TogglePolicyHandler } from './application/commands/toggle-policy.command';
 import { ActivateHandler } from './application/commands/activate.command';
+import { SubmitProfileHandler } from './application/commands/submit-profile.command';
+import { SetTaskAssigneeHandler } from './application/commands/set-task-assignee.command';
+import { UploadCaseDocumentHandler } from './application/commands/upload-case-document.command';
+import { GetCaseDocumentFileHandler } from './application/queries/get-case-document-file.query';
 
 @Module({
   imports: [CqrsModule],
@@ -21,8 +25,9 @@ import { ActivateHandler } from './application/commands/activate.command';
   providers: [
     OnboardingRepository,
     ListCasesHandler, GetPipelineHandler,
-    CreateCaseHandler, MarkFormHandler, AddConsentHandler, FinalizeSubmissionHandler,
-    SetChecklistHandler, SetTaskStatusHandler, VerifyDocumentHandler, TogglePolicyHandler, ActivateHandler,
+    CreateCaseHandler, MarkFormHandler, SubmitProfileHandler, UploadCaseDocumentHandler,
+    GetCaseDocumentFileHandler, AddConsentHandler, FinalizeSubmissionHandler,
+    SetChecklistHandler, SetTaskStatusHandler, SetTaskAssigneeHandler, VerifyDocumentHandler, TogglePolicyHandler, ActivateHandler,
   ],
 })
 export class OnboardingModule {}

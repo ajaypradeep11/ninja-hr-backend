@@ -2,6 +2,7 @@
 import type { ProvinceCode } from 'src/shared-kernel/province';
 import type {
   OnboardingCase, CaseStatus, TaskOwner, TaskStatus, DataAccess, DocStatus, FormFlags,
+  NewHireProfile,
 } from '../domain/onboarding.types';
 
 function invert<K extends string, V extends string>(m: Record<K, V>): Record<V, K> {
@@ -40,6 +41,30 @@ export const docStatusFromDb = invert(docStatusToDb);
 const d = (date: Date | null | undefined, len = 10): string | undefined =>
   date ? date.toISOString().slice(0, len) : undefined;
 
+// Full-precision UTC timestamp — a bare `slice(0, 19)` drops the trailing `Z`,
+// leaving a timezone-ambiguous string that consumers re-parse as local time.
+const dt = (date: Date | null | undefined): string | undefined =>
+  date ? date.toISOString() : undefined;
+
+/** Keep only the last `keep` characters visible: "046454286" → "••• ••• 286". */
+const maskTail = (value: string, keep: number, prefix: string): string =>
+  `${prefix}${value.slice(-keep)}`;
+
+/**
+ * The new-hire form contains SIN + banking. Masking happens HERE — the single
+ * seam every case read flows through — so no API response can carry the raw
+ * values, regardless of which endpoint fetched the case.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function maskProfile(raw: any): NewHireProfile | undefined {
+  if (!raw) return undefined;
+  return {
+    ...raw,
+    sin: raw.sin ? maskTail(String(raw.sin), 3, '••• ••• ') : '',
+    bankAccount: raw.bankAccount ? maskTail(String(raw.bankAccount), 4, '••••') : '',
+  } as NewHireProfile;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function rowToCase(row: any): OnboardingCase {
   return {
@@ -54,6 +79,8 @@ export function rowToCase(row: any): OnboardingCase {
     status: caseStatusFromDb[row.status as keyof typeof caseStatusFromDb],
     createdAt: d(row.createdAt)!,
     forms: row.forms as FormFlags,
+    profile: maskProfile(row.profile),
+    taskAssignees: (row.taskAssignees as OnboardingCase['taskAssignees']) ?? {},
     policiesAttached: row.policiesAttached,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     checklist: row.checklist.map((t: any) => ({
@@ -66,12 +93,16 @@ export function rowToCase(row: any): OnboardingCase {
       id: doc.id, name: doc.name, type: doc.type, folder: doc.folder,
       status: docStatusFromDb[doc.status as keyof typeof docStatusFromDb],
       signedAt: d(doc.signedAt), signedBy: doc.signedBy ?? undefined, ip: doc.ip ?? undefined,
+      mimeType: doc.mimeType ?? undefined,
+      size: doc.size ?? undefined,
+      // `data` never travels with the case; size marks an uploaded file.
+      hasFile: doc.size != null,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     consent: row.consent.map((e: any) => ({
-      policy: e.policy, version: e.version, timestamp: d(e.timestamp, 19)!, ip: e.ip,
+      policy: e.policy, version: e.version, timestamp: dt(e.timestamp)!, ip: e.ip,
     })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    auditLog: row.auditLog.map((a: any) => ({ at: d(a.at, 19)!, event: a.event })),
+    auditLog: row.auditLog.map((a: any) => ({ at: dt(a.at)!, event: a.event })),
   };
 }
