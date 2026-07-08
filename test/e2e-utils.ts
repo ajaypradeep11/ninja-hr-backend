@@ -11,11 +11,8 @@ process.env.FIREBASE_AUTH_DISABLED ??= '1';
 
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { InternalKeyGuard } from '../src/platform/auth/internal-key.guard';
-import { FirebaseAdminService } from '../src/platform/auth/firebase-admin.service';
 import { PrismaExceptionFilter } from '../src/platform/database/prisma-exception.filter';
 
 export const KEY = process.env.INTERNAL_API_KEY ?? 'dev-internal-key';
@@ -25,7 +22,9 @@ export async function createE2eApp(): Promise<INestApplication> {
   const app = mod.createNestApplication();
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalGuards(new InternalKeyGuard(app.get(Reflector), app.get(FirebaseAdminService)));
+  // InternalKeyGuard is registered as the first APP_GUARD in AppModule
+  // (must run before ActorGuard so req.trusted/req.firebaseUser are set
+  // before ActorGuard resolves req.actor) — no need to add it again here.
   app.useGlobalFilters(new PrismaExceptionFilter());
   await app.init();
   return app;
@@ -60,4 +59,29 @@ export async function fetchSeededUsers(app: INestApplication): Promise<SeededUse
     throw new Error('Seeded users missing — run `npm run db:seed` before the e2e suite.');
   }
   return { hr, manager, employee };
+}
+
+/**
+ * Mint a Firebase ID token via the Auth emulator's REST API (sign-up, falling
+ * back to sign-in if the email already exists from a prior run). Only usable
+ * when FIREBASE_AUTH_EMULATOR_HOST is set (i.e. under `npm run test:e2e:auth`,
+ * driven by `firebase emulators:exec`).
+ */
+export async function mintEmulatorToken(email: string, password = 'demo-password'): Promise<string> {
+  const host = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  if (!host) throw new Error('auth e2e requires the Firebase auth emulator (npm run test:e2e:auth)');
+  const base = `http://${host}/identitytoolkit.googleapis.com/v1`;
+  const signUp = await fetch(`${base}/accounts:signUp?key=fake`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+  });
+  if (signUp.ok) return (await signUp.json() as { idToken: string }).idToken;
+  const signIn = await fetch(`${base}/accounts:signInWithPassword?key=fake`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password, returnSecureToken: true }),
+  });
+  if (!signIn.ok) throw new Error(`emulator sign-in failed: ${await signIn.text()}`);
+  return (await signIn.json() as { idToken: string }).idToken;
 }
