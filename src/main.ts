@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { InternalKeyGuard } from './platform/auth/internal-key.guard';
+import { FirebaseAdminService } from './platform/auth/firebase-admin.service';
 import { PrismaExceptionFilter } from './platform/database/prisma-exception.filter';
 
 async function bootstrap() {
@@ -15,7 +16,7 @@ async function bootstrap() {
   app.use(json({ limit: '8mb' }));
   app.use(urlencoded({ extended: true, limit: '8mb' }));
   app.setGlobalPrefix('api/v1');
-  app.useGlobalGuards(new InternalKeyGuard(app.get(Reflector)));
+  app.useGlobalGuards(new InternalKeyGuard(app.get(Reflector), app.get(FirebaseAdminService)));
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new PrismaExceptionFilter());
 

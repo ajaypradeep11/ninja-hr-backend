@@ -1,10 +1,14 @@
 import 'dotenv/config';
+// Keep the guard's Firebase lane dormant by default (see test/e2e-utils.ts) —
+// this suite drives everything through the trusted internal-key lane.
+process.env.FIREBASE_AUTH_DISABLED ??= '1';
 import { Test } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { InternalKeyGuard } from '../src/platform/auth/internal-key.guard';
+import { FirebaseAdminService } from '../src/platform/auth/firebase-admin.service';
 
 describe('Onboarding (e2e)', () => {
   let app: INestApplication;
@@ -16,7 +20,7 @@ describe('Onboarding (e2e)', () => {
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.useGlobalGuards(new InternalKeyGuard(app.get(Reflector)));
+    app.useGlobalGuards(new InternalKeyGuard(app.get(Reflector), app.get(FirebaseAdminService)));
     await app.init();
     await request(app.getHttpServer())
       .post('/api/v1/onboarding/cases')
