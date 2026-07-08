@@ -20,14 +20,21 @@ import {
 export class PeopleRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getEmployees(): Promise<Employee[]> {
-    const rows = await this.prisma.employee.findMany({ orderBy: { name: 'asc' } });
-    return rows.map(rowToEmployee);
+  /** Privacy: when an employee marked their birthday private, non-HR viewers
+   *  get an empty birthDate — team calendars/dashboards simply skip it. */
+  private scrubBirthday(e: Employee, viewerIsHr: boolean): Employee {
+    if (viewerIsHr || !e.birthdayPrivate) return e;
+    return { ...e, birthDate: '' };
   }
 
-  async getEmployeeByName(name: string): Promise<Employee | null> {
+  async getEmployees(viewerIsHr = false): Promise<Employee[]> {
+    const rows = await this.prisma.employee.findMany({ orderBy: { name: 'asc' } });
+    return rows.map((r) => this.scrubBirthday(rowToEmployee(r), viewerIsHr));
+  }
+
+  async getEmployeeByName(name: string, viewerIsHr = false): Promise<Employee | null> {
     const rows = await this.prisma.employee.findMany({ where: { name }, take: 1 });
-    return rows.length ? rowToEmployee(rows[0]) : null;
+    return rows.length ? this.scrubBirthday(rowToEmployee(rows[0]), viewerIsHr) : null;
   }
 
   /* ------------------------- HRIS record ------------------------- */
@@ -56,6 +63,7 @@ export class PeopleRepository {
         ...(has('status') ? { status: empStatusToDb[input.status!] as any } : {}),
         ...(has('salary') ? { salary: input.salary } : {}),
         ...(has('employeeNumber') ? { employeeNumber: input.employeeNumber || null } : {}),
+        ...(has('birthdayPrivate') ? { birthdayPrivate: input.birthdayPrivate } : {}),
         ...(has('preferredName') ? { preferredName: input.preferredName || null } : {}),
         ...(has('pronouns') ? { pronouns: input.pronouns || null } : {}),
         ...(has('personalEmail') ? { personalEmail: input.personalEmail || null } : {}),

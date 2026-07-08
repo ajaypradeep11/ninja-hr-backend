@@ -58,6 +58,7 @@ export function rowToEmployee(row: any): Employee {
     email: row.email,
     hireDate: iso(row.hireDate),
     birthDate: iso(row.birthDate),
+    birthdayPrivate: row.birthdayPrivate ?? false,
     manager: row.manager ?? undefined,
     status: empStatusFromDb[row.status as keyof typeof empStatusFromDb],
     salary: row.salary,

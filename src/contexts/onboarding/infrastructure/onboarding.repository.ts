@@ -138,11 +138,20 @@ export class OnboardingRepository {
 
   /** Raw new-hire form payload (incl. SIN/banking) — reads mask via the mapper. */
   async saveProfile(token: string, profile: Record<string, unknown>): Promise<void> {
-    await this.prisma.onboardingCase.update({
+    const updated = await this.prisma.onboardingCase.update({
       where: { token },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: { profile: profile as any },
     });
+    // Propagate the birthday-privacy preference to the live Employee record
+    // (when one exists by name) so team calendars/dashboards honour it
+    // immediately — HR views keep the DOB regardless.
+    if (typeof profile.birthdayPrivate === 'boolean') {
+      await this.prisma.employee.updateMany({
+        where: { name: updated.name },
+        data: { birthdayPrivate: profile.birthdayPrivate },
+      });
+    }
   }
   async addConsentEntry(caseId: string, policy: string, version: string, ip: string): Promise<void> {
     await this.prisma.consentEntry.create({ data: { caseId, policy, version, ip } });

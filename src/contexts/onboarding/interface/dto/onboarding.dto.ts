@@ -61,6 +61,8 @@ export class NewHireProfileDto {
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(100) legalLastName!: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(100) preferredName?: string;
   @ApiProperty({ description: 'ISO date YYYY-MM-DD' }) @IsDateString() dateOfBirth!: string;
+  /** Keep my birthday private — hidden from team calendars and dashboards. */
+  @ApiProperty({ required: false }) @IsOptional() @IsBoolean() birthdayPrivate?: boolean;
 
   @ApiProperty({ description: '9 digits, no spaces' })
   @Matches(/^\d{9}$/, { message: 'SIN must be exactly 9 digits (no spaces or dashes)' })

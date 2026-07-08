@@ -3,7 +3,10 @@ import { PeopleRepository } from '../../infrastructure/people.repository';
 import type { Employee } from '../../domain/people.types';
 
 export class GetEmployeeByNameQuery {
-  constructor(public readonly name: string) {}
+  constructor(
+    public readonly name: string,
+    public readonly viewerIsHr: boolean = false,
+  ) {}
 }
 
 @QueryHandler(GetEmployeeByNameQuery)
@@ -12,6 +15,6 @@ export class GetEmployeeByNameHandler
 {
   constructor(private readonly repo: PeopleRepository) {}
   execute(query: GetEmployeeByNameQuery): Promise<Employee | null> {
-    return this.repo.getEmployeeByName(query.name);
+    return this.repo.getEmployeeByName(query.name, query.viewerIsHr);
   }
 }

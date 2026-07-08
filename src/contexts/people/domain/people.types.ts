@@ -19,12 +19,15 @@ export interface Employee {
   province: ProvinceCode;
   email: string;
   hireDate: string;   // ISO date YYYY-MM-DD
-  birthDate: string;  // ISO date YYYY-MM-DD
+  /** ISO date YYYY-MM-DD — blanked for non-HR viewers when birthdayPrivate. */
+  birthDate: string;
   manager?: string;
   status: EmployeeStatus;
   salary: number;
   avatar?: string;
   employeeNumber?: string;
+  /** Hide birthday from team calendars/dashboards; HR always sees the DOB. */
+  birthdayPrivate: boolean;
 }
 
 export interface EmergencyContact {
@@ -74,6 +77,7 @@ export interface EmployeeDetail extends Employee {
 
 /** HRIS fields an HR user may edit (raw sensitive values accepted here). */
 export interface UpdateEmployeeInput {
+  birthdayPrivate?: boolean;
   title?: string;
   department?: string;
   manager?: string;

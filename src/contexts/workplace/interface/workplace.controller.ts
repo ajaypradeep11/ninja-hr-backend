@@ -54,8 +54,10 @@ export class WorkplaceController {
 
   /* ---------------------- Letter Lab (HR letters) -------------------- */
 
+  // Managers can read templates + issue letters for their reports (e.g.
+  // probation letters from the Milestone Tracker); editing stays HR-only.
   @Get('letter-templates')
-  @Roles('HR_ADMIN')
+  @Roles('HR_ADMIN', 'MANAGER')
   getLetterTemplates() {
     return this.queries.execute(new GetLetterTemplatesQuery());
   }
@@ -80,7 +82,7 @@ export class WorkplaceController {
 
   /** File a generated letter into the employee's vault (save / e-signature). */
   @Post('letters/issue')
-  @Roles('HR_ADMIN')
+  @Roles('HR_ADMIN', 'MANAGER')
   issueLetter(@Body() body: IssueLetterDto) {
     return this.commands.execute(new IssueLetterCommand(body));
   }

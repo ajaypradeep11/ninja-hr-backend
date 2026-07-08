@@ -25,6 +25,8 @@ const SELF_EDITABLE = new Set([
   'addressStreet',
   'addressCity',
   'addressPostal',
+  // Privacy preference: employees own whether their birthday is shared.
+  'birthdayPrivate',
 ]);
 
 function assertSelfOrHr(actor: ActorContext, employeeId: string): void {
@@ -42,13 +44,13 @@ export class PeopleController {
   ) {}
 
   @Get('employees')
-  getEmployees() {
-    return this.queries.execute(new GetEmployeesQuery());
+  getEmployees(@ActorCtx() actor: ActorContext) {
+    return this.queries.execute(new GetEmployeesQuery(actor.role === 'HR_ADMIN'));
   }
 
   @Get('employees/by-name/:name')
-  getEmployeeByName(@Param('name') name: string) {
-    return this.queries.execute(new GetEmployeeByNameQuery(name));
+  getEmployeeByName(@Param('name') name: string, @ActorCtx() actor: ActorContext) {
+    return this.queries.execute(new GetEmployeeByNameQuery(name, actor.role === 'HR_ADMIN'));
   }
 
   @Get('headcount')

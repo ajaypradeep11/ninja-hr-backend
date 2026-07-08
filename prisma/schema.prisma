@@ -87,6 +87,8 @@ model Employee {
   email         String              @unique
   hireDate      DateTime
   birthDate     DateTime
+  /// Employee privacy: hide birthday from team calendars/dashboards (HR still sees DOB).
+  birthdayPrivate Boolean          @default(false)
   manager       String?
   status        EmployeeStatus      @default(ACTIVE)
   salary        Int
