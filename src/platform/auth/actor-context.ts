@@ -11,6 +11,8 @@ export interface ActorContext {
   employeeName: string | null;
   department: string | null;
   role: ActorRole;
+  /** The verified user when impersonating via x-actor-id; equals userId otherwise. */
+  realUserId: string | null;
 }
 
 /** Injects the resolved ActorContext (set by ActorGuard) into a handler param. */
@@ -18,6 +20,13 @@ export const ActorCtx = createParamDecorator((_data: unknown, ctx: ExecutionCont
   const req = ctx.switchToHttp().getRequest<{ actor?: ActorContext }>();
   // ActorGuard always runs first; the fallback covers direct unit-test calls.
   return (
-    req.actor ?? { userId: null, employeeId: null, employeeName: null, department: null, role: 'EMPLOYEE' }
+    req.actor ?? {
+      userId: null,
+      employeeId: null,
+      employeeName: null,
+      department: null,
+      role: 'EMPLOYEE',
+      realUserId: null,
+    }
   );
 });
