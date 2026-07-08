@@ -162,11 +162,13 @@ enum Role {
 // Demo-auth identity: a switchable "login" linked 1:1 to an Employee.
 // Role gating is enforced by the backend; only the login screen is simulated.
 model User {
-  id         String   @id @default(cuid())
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId String   @unique
-  role       Role     @default(EMPLOYEE)
-  createdAt  DateTime @default(now())
+  id          String   @id @default(cuid())
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId  String   @unique
+  role        Role     @default(EMPLOYEE)
+  /// Firebase Auth uid — stamped on first token-authenticated request (email match).
+  firebaseUid String?  @unique
+  createdAt   DateTime @default(now())
 }
 
 /* ------------------------------ Leave ------------------------------ */
