@@ -15,6 +15,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "dotenv -e .env -- prisma migrate deploy",
     "db:seed": "dotenv -e .env -- prisma db seed",
+    "seed:auth": "dotenv -e .env -- tsx scripts/seed-auth-emulator.ts",
     "db:up": "docker compose up -d --wait",
     "db:down": "docker compose down"
   },

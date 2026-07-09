@@ -5,6 +5,7 @@ import { OnboardingController } from './interface/onboarding.controller';
 import { OnboardingRepository } from './infrastructure/onboarding.repository';
 import { ListCasesHandler } from './application/queries/list-cases.query';
 import { GetPipelineHandler } from './application/queries/get-pipeline.query';
+import { GetCaseByTokenHandler } from './application/queries/get-case-by-token.query';
 import { CreateCaseHandler } from './application/commands/create-case.command';
 import { MarkFormHandler } from './application/commands/mark-form.command';
 import { AddConsentHandler } from './application/commands/add-consent.command';
@@ -24,7 +25,7 @@ import { GetCaseDocumentFileHandler } from './application/queries/get-case-docum
   controllers: [OnboardingController],
   providers: [
     OnboardingRepository,
-    ListCasesHandler, GetPipelineHandler,
+    ListCasesHandler, GetPipelineHandler, GetCaseByTokenHandler,
     CreateCaseHandler, MarkFormHandler, SubmitProfileHandler, UploadCaseDocumentHandler,
     GetCaseDocumentFileHandler, AddConsentHandler, FinalizeSubmissionHandler,
     SetChecklistHandler, SetTaskStatusHandler, SetTaskAssigneeHandler, VerifyDocumentHandler, TogglePolicyHandler, ActivateHandler,

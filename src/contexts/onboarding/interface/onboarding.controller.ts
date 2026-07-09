@@ -5,6 +5,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ListCasesQuery } from '../application/queries/list-cases.query';
 import { GetPipelineQuery } from '../application/queries/get-pipeline.query';
+import { GetCaseByTokenQuery } from '../application/queries/get-case-by-token.query';
 import { CreateCaseCommand } from '../application/commands/create-case.command';
 import { MarkFormCommand } from '../application/commands/mark-form.command';
 import { AddConsentCommand } from '../application/commands/add-consent.command';
@@ -42,6 +43,14 @@ export class OnboardingController {
   @Post('cases')
   createCase(@Body() body: NewCaseDto) {
     return this.commands.execute(new CreateCaseCommand(body));
+  }
+
+  /** Looks up a case by its invite token — backs `/welcome/:token` (new hire
+   * has no session yet, so this is only ever called over the internal-key
+   * lane). Returns null for an unknown/expired token. */
+  @Get('cases/by-token/:token')
+  getByToken(@Param('token') token: string) {
+    return this.queries.execute(new GetCaseByTokenQuery(token));
   }
 
   @Post('cases/by-token/:token/forms/:key')
