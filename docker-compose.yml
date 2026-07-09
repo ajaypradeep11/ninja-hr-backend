@@ -1,7 +1,7 @@
 # Local Postgres for TestHR development.
 #   npm run db:up      → start (waits until healthy)
-#   npm run db:fresh   → wipe volume, start, migrate, seed
-#   npm run db:nuke    → stop and delete the data volume
+#   npm run db:down    → stop (keeps the data volume)
+# To wipe data: docker compose down -v (deletes the `testhr-pgdata` volume).
 # Data lives in the named volume `testhr-pgdata` so it survives `db:down`.
 services:
   db:

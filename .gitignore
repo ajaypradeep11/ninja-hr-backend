@@ -7,3 +7,6 @@ coverage/
 .env.*
 !.env.example
 src/platform/database/generated/
+
+# Claude Code agent worktrees
+.claude/worktrees/

@@ -58,15 +58,55 @@ describe('Onboarding (e2e)', () => {
     expect(res.body.checklist.length).toBeGreaterThan(0);
   });
 
-  it('activation audit entry is present in the returned case', async () => {
+  it('a bare case cannot activate — the activation gates block it (409)', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/api/v1/onboarding/cases')
+      .set('x-internal-key', key)
+      .set('x-actor-persona', 'admin')
+      .send({ name: 'E2E Gated', province: 'ON', startDate: '2026-08-01', personalEmail: 'e2e-gated@test.com' })
+      .expect(201);
+
+    const activateRes = await request(app.getHttpServer())
+      .post(`/api/v1/onboarding/cases/${createRes.body.id}/activate`)
+      .set('x-internal-key', key)
+      .set('x-actor-persona', 'admin')
+      .expect(409);
+    expect(activateRes.body.message).toContain('Cannot activate');
+  });
+
+  it('completing forms + blocking tasks unlocks activation, with an audit entry', async () => {
     const createRes = await request(app.getHttpServer())
       .post('/api/v1/onboarding/cases')
       .set('x-internal-key', key)
       .set('x-actor-persona', 'admin')
       .send({ name: 'E2E Activate', province: 'ON', startDate: '2026-08-01', personalEmail: 'e2e-activate@test.com' })
       .expect(201);
-    const id = createRes.body.id;
+    const { id, token } = createRes.body as {
+      id: string;
+      token: string;
+      checklist: { id: string; blocking: boolean }[];
+    };
 
+    // Gate 1 — the employee completes every onboarding form (by-token wizard).
+    for (const formKey of ['personal', 'td1', 'directDeposit', 'benefits', 'handbook']) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/onboarding/cases/by-token/${token}/forms/${formKey}`)
+        .set('x-internal-key', key)
+        .set('x-actor-persona', 'employee')
+        .expect(201);
+    }
+
+    // Gate 2 — HR completes every blocking checklist task.
+    for (const task of createRes.body.checklist.filter((t: { blocking: boolean }) => t.blocking)) {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/onboarding/cases/${id}/tasks/${task.id}`)
+        .set('x-internal-key', key)
+        .set('x-actor-persona', 'admin')
+        .send({ status: 'Completed' })
+        .expect(200);
+    }
+
+    // Gate 3 (no documents uploaded → nothing pending verification) — activate.
     const activateRes = await request(app.getHttpServer())
       .post(`/api/v1/onboarding/cases/${id}/activate`)
       .set('x-internal-key', key)
