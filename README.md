@@ -29,3 +29,31 @@ npm test                 # unit tests (domain services + mappers)
 npm run test:e2e         # HTTP e2e suite (test/*.e2e-spec.ts) — needs the local DB up, migrated and seeded (db:up + prisma:migrate + db:seed)
 ```
 
+## Deployment
+
+This is a NestJS service — **Firebase App Hosting can't run it** (App Hosting
+is Next.js-only); **Cloud Run + Cloud SQL is the pairing**:
+
+```bash
+# One-time: a Cloud SQL for PostgreSQL instance, then run prisma migrate deploy
+# against it (from a machine that can reach it, e.g. via the Cloud SQL Auth Proxy).
+gcloud run deploy ninja-hr-api \
+  --source . \
+  --region YOUR_REGION \
+  --add-cloudsql-instances YOUR_PROJECT:YOUR_REGION:YOUR_INSTANCE \
+  --set-env-vars DATABASE_URL="postgresql://...@localhost/testhr?host=/cloudsql/YOUR_PROJECT:YOUR_REGION:YOUR_INSTANCE" \
+  --set-env-vars FIREBASE_PROJECT_ID=YOUR_PROJECT_ID \
+  --set-env-vars FIREBASE_CLIENT_EMAIL=YOUR_SERVICE_ACCOUNT_EMAIL \
+  --set-secrets FIREBASE_PRIVATE_KEY=firebase-private-key:latest \
+  --set-secrets INTERNAL_API_KEY=internal-api-key:latest
+```
+
+Notes:
+- Prefer `--set-secrets` (Secret Manager) over `--set-env-vars` for anything
+  sensitive (`FIREBASE_PRIVATE_KEY`, `INTERNAL_API_KEY`) — the command above
+  mixes both only to show the shape; wire real secrets through Secret Manager.
+- Do **not** set `FIREBASE_AUTH_EMULATOR_HOST` or `FIREBASE_AUTH_DISABLED` in
+  production — the service should verify real Firebase tokens.
+- The frontend's `NINJA_HR_API_URL` (in its own `apphosting.yaml`) must point
+  at this Cloud Run service's URL.
+
