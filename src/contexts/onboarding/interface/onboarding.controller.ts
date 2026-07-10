@@ -3,6 +3,7 @@ import { Body, Controller, Get, Ip, Param, Patch, Post, Put, Res } from '@nestjs
 import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { Roles } from 'src/platform/auth/roles.decorator';
 import { ListCasesQuery } from '../application/queries/list-cases.query';
 import { GetPipelineQuery } from '../application/queries/get-pipeline.query';
 import { GetCaseByTokenQuery } from '../application/queries/get-case-by-token.query';
@@ -30,17 +31,23 @@ import type { FormFlags } from '../domain/onboarding.types';
 export class OnboardingController {
   constructor(private readonly queries: QueryBus, private readonly commands: CommandBus) {}
 
+  // HR management surface below. The `cases/by-token/*` new-hire routes stay
+  // ungated on purpose — they are token-scoped and reached over the trusted
+  // internal-key lane before the new hire has a session.
   @Get('cases')
+  @Roles('HR_ADMIN')
   listCases() {
     return this.queries.execute(new ListCasesQuery());
   }
 
   @Get('pipeline')
+  @Roles('HR_ADMIN')
   pipeline() {
     return this.queries.execute(new GetPipelineQuery());
   }
 
   @Post('cases')
+  @Roles('HR_ADMIN')
   createCase(@Body() body: NewCaseDto) {
     return this.commands.execute(new CreateCaseCommand(body));
   }
@@ -75,8 +82,11 @@ export class OnboardingController {
     );
   }
 
-  /** Download an uploaded preboarding file (HR verification). */
+  /** Download an uploaded preboarding file (HR verification). HR-only: these
+   * are new hires' SIN/banking documents, so this must never be reachable by
+   * a plain employee guessing case/doc ids. */
   @Get('cases/:id/documents/:docId/file')
+  @Roles('HR_ADMIN')
   async downloadDocument(
     @Param('id') id: string,
     @Param('docId') docId: string,
@@ -87,6 +97,7 @@ export class OnboardingController {
     // (document names contain em dashes).
     const ascii = file.name.replace(/"/g, '').replace(/[^\x20-\x7E]/g, '-');
     res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
@@ -105,32 +116,38 @@ export class OnboardingController {
   }
 
   @Put('cases/:id/checklist')
+  @Roles('HR_ADMIN')
   setChecklist(@Param('id') id: string, @Body() body: ChecklistDto) {
     return this.commands.execute(new SetChecklistCommand(id, body.tasks));
   }
 
   /** Assign an internal employee to own a department's task block. */
   @Patch('cases/:id/assignees')
+  @Roles('HR_ADMIN')
   setTaskAssignee(@Param('id') id: string, @Body() body: SetTaskAssigneeDto) {
     return this.commands.execute(new SetTaskAssigneeCommand(id, body.owner, body.employeeName));
   }
 
   @Patch('cases/:id/tasks/:taskId')
+  @Roles('HR_ADMIN')
   setTaskStatus(@Param('id') id: string, @Param('taskId') taskId: string, @Body() body: TaskStatusDto) {
     return this.commands.execute(new SetTaskStatusCommand(id, taskId, body.status));
   }
 
   @Post('cases/:id/documents/:docId/verify')
+  @Roles('HR_ADMIN')
   verifyDocument(@Param('id') id: string, @Param('docId') docId: string) {
     return this.commands.execute(new VerifyDocumentCommand(id, docId));
   }
 
   @Post('cases/:id/policies/toggle')
+  @Roles('HR_ADMIN')
   togglePolicy(@Param('id') id: string, @Body() body: PolicyDto) {
     return this.commands.execute(new TogglePolicyCommand(id, body.policy));
   }
 
   @Post('cases/:id/activate')
+  @Roles('HR_ADMIN')
   activate(@Param('id') id: string) {
     return this.commands.execute(new ActivateCommand(id));
   }

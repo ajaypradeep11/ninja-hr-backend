@@ -5,7 +5,32 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './platform/database/prisma-exception.filter';
 
+/**
+ * Fail closed on dangerous production configuration. The internal-key lane is a
+ * full-trust bypass (it can impersonate any user), and Firebase is the only
+ * end-user authentication — so a weak/default key or disabled auth in
+ * production would be a complete authentication bypass. Refuse to boot.
+ */
+function assertProductionConfig(): void {
+  if (process.env.NODE_ENV !== 'production') return;
+  const errors: string[] = [];
+  const key = process.env.INTERNAL_API_KEY;
+  if (!key || key.length < 24) {
+    errors.push('INTERNAL_API_KEY must be set and at least 24 characters in production');
+  }
+  if (key === 'dev-internal-key') {
+    errors.push('INTERNAL_API_KEY is still the development default');
+  }
+  if (process.env.FIREBASE_AUTH_DISABLED === '1') {
+    errors.push('FIREBASE_AUTH_DISABLED=1 disables all end-user authentication and must not be set in production');
+  }
+  if (errors.length) {
+    throw new Error(`Insecure production configuration:\n- ${errors.join('\n- ')}`);
+  }
+}
+
 async function bootstrap() {
+  assertProductionConfig();
   // Raise the JSON body limit so base64-encoded résumé uploads (careers page)
   // aren't rejected by the default ~100kb express limit.
   const app = await NestFactory.create(AppModule, { bodyParser: false });

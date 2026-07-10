@@ -47,9 +47,11 @@ export class WorkplaceController {
     private readonly commands: CommandBus,
   ) {}
 
+  /** Document vault. Scoped in the handler: non-HR viewers never see another
+   *  employee's personal documents or anything above their clearance. */
   @Get('documents')
-  getVaultDocuments() {
-    return this.queries.execute(new GetVaultDocumentsQuery());
+  getVaultDocuments(@ActorCtx() actor: ActorContext) {
+    return this.queries.execute(new GetVaultDocumentsQuery(actor));
   }
 
   /* ---------------------- Letter Lab (HR letters) -------------------- */

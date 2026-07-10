@@ -2,6 +2,7 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { Roles } from 'src/platform/auth/roles.decorator';
 import { GetOffboardingTasksQuery } from '../application/queries/get-offboarding-tasks.query';
 import { SetOffboardingTaskStatusCommand } from '../application/commands/set-offboarding-task-status.command';
 import { SetOffboardingAssigneeCommand } from '../application/commands/set-offboarding-assignee.command';
@@ -14,6 +15,10 @@ import {
 
 @ApiTags('offboarding')
 @Controller('offboarding')
+// Entire offboarding surface (viewing who is being separated, mutating tasks,
+// and finalizing terminations) is HR-only. Without this any authenticated
+// employee could terminate a colleague or read the separation board.
+@Roles('HR_ADMIN')
 export class OffboardingController {
   constructor(
     private readonly queries: QueryBus,

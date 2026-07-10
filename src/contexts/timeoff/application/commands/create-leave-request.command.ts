@@ -15,7 +15,15 @@ export class CreateLeaveRequestHandler
   constructor(private readonly repo: TimeoffRepository) {}
 
   async execute({ input, actor }: CreateLeaveRequestCommand): Promise<LeaveRequest[]> {
-    await this.repo.createLeave(input);
+    // A non-HR actor may only file leave for THEMSELVES. Without this an
+    // employee could fabricate leave/overtime against a colleague by passing
+    // that colleague's name. HR (and the trusted persona fallback, which has no
+    // resolved employee) may file on anyone's behalf.
+    const scoped =
+      actor && actor.role !== 'HR_ADMIN' && actor.employeeName
+        ? { ...input, employeeName: actor.employeeName }
+        : input;
+    await this.repo.createLeave(scoped);
     return this.repo.getLeaveRequests(actor);
   }
 }

@@ -30,8 +30,21 @@ const ASSIGNMENT_INCLUDE = { course: true, employee: true } as const;
 export class WorkplaceRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getVaultDocuments(): Promise<VaultDocument[]> {
-    const rows = await this.prisma.vaultDocument.findMany({ orderBy: { uploaded: 'desc' } });
+  async getVaultDocuments(actor?: ActorContext): Promise<VaultDocument[]> {
+    // HR sees the whole vault. Everyone else must NOT see another employee's
+    // personal documents (e.g. HR letters filed with access:EMPLOYEE +
+    // employeeId) or documents above their clearance. Scope at the DB level.
+    const isHr = actor?.role === 'HR_ADMIN';
+    const clearance: ('EMPLOYEE' | 'MANAGER')[] =
+      actor?.role === 'MANAGER' ? ['EMPLOYEE', 'MANAGER'] : ['EMPLOYEE'];
+    const where = isHr
+      ? {}
+      : {
+          access: { in: clearance },
+          // Company-wide docs (no owner) or the caller's own personal docs only.
+          OR: [{ employeeId: null }, ...(actor?.employeeId ? [{ employeeId: actor.employeeId }] : [])],
+        };
+    const rows = await this.prisma.vaultDocument.findMany({ where, orderBy: { uploaded: 'desc' } });
     return rows.map(rowToVaultDocument);
   }
 

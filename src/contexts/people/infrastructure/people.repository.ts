@@ -20,21 +20,27 @@ import {
 export class PeopleRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Privacy: when an employee marked their birthday private, non-HR viewers
-   *  get an empty birthDate — team calendars/dashboards simply skip it. */
-  private scrubBirthday(e: Employee, viewerIsHr: boolean): Employee {
-    if (viewerIsHr || !e.birthdayPrivate) return e;
-    return { ...e, birthDate: '' };
+  /** Redact fields non-HR viewers must not see in the roster/directory:
+   *  - compensation (salary) is HR-only; leaking it to every employee is a
+   *    confidentiality breach, so it is zeroed for non-HR viewers.
+   *  - birthDate is cleared when the employee marked their birthday private. */
+  private scrubForViewer(e: Employee, viewerIsHr: boolean): Employee {
+    if (viewerIsHr) return e;
+    return {
+      ...e,
+      salary: 0,
+      ...(e.birthdayPrivate ? { birthDate: '' } : {}),
+    };
   }
 
   async getEmployees(viewerIsHr = false): Promise<Employee[]> {
     const rows = await this.prisma.employee.findMany({ orderBy: { name: 'asc' } });
-    return rows.map((r) => this.scrubBirthday(rowToEmployee(r), viewerIsHr));
+    return rows.map((r) => this.scrubForViewer(rowToEmployee(r), viewerIsHr));
   }
 
   async getEmployeeByName(name: string, viewerIsHr = false): Promise<Employee | null> {
     const rows = await this.prisma.employee.findMany({ where: { name }, take: 1 });
-    return rows.length ? this.scrubBirthday(rowToEmployee(rows[0]), viewerIsHr) : null;
+    return rows.length ? this.scrubForViewer(rowToEmployee(rows[0]), viewerIsHr) : null;
   }
 
   /* ------------------------- HRIS record ------------------------- */

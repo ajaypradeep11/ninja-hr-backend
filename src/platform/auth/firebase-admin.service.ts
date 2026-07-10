@@ -3,13 +3,14 @@
 // Three modes:
 //  - disabled (FIREBASE_AUTH_DISABLED=1): guard rejects bearer auth; internal-key lane still works
 //  - emulator (FIREBASE_AUTH_EMULATOR_HOST set): no credentials needed, project id only
-//  - production: FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY (service account)
+//  - production: application default credentials, or explicit service-account env vars
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 
 export interface VerifiedFirebaseUser {
   uid: string;
   email: string | null;
+  emailVerified: boolean;
 }
 
 @Injectable()
@@ -31,15 +32,20 @@ export class FirebaseAdminService {
         : admin.initializeApp({ projectId });
       return;
     }
-    if (!projectId || !clientEmail || !privateKey) {
+    if (!projectId && !process.env.FIREBASE_CONFIG) {
       throw new Error(
-        'FIREBASE_* credentials missing. Set FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY, ' +
+        'FIREBASE_PROJECT_ID or FIREBASE_CONFIG is required. Use application default credentials in production, ' +
+          'set FIREBASE_PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY for explicit service-account auth, ' +
           'or FIREBASE_AUTH_EMULATOR_HOST for local dev, or FIREBASE_AUTH_DISABLED=1 to run without auth.',
       );
     }
-    this.app = admin.apps.length
-      ? admin.app()
-      : admin.initializeApp({ credential: admin.credential.cert({ projectId, clientEmail, privateKey }) });
+    const options =
+      clientEmail && privateKey
+        ? { credential: admin.credential.cert({ projectId, clientEmail, privateKey }) }
+        : projectId
+          ? { projectId }
+          : undefined;
+    this.app = admin.apps.length ? admin.app() : admin.initializeApp(options);
   }
 
   get enabled(): boolean {
@@ -56,12 +62,23 @@ export class FirebaseAdminService {
     const auth = this.auth();
     try {
       const t = await auth.verifyIdToken(token, true);
-      return { uid: t.uid, email: t.email ?? null };
+      return { uid: t.uid, email: t.email ?? null, emailVerified: t.email_verified === true };
     } catch {
       const c = await auth.verifySessionCookie(token, true).catch(() => {
         throw new UnauthorizedException('invalid or expired token');
       });
-      return { uid: c.uid, email: c.email ?? null };
+      return { uid: c.uid, email: c.email ?? null, emailVerified: c.email_verified === true };
+    }
+  }
+
+  /** Look up an existing Firebase user's uid by email WITHOUT creating one.
+   * Returns null when no account exists (or auth is disabled). */
+  async findUserByEmail(email: string): Promise<string | null> {
+    if (!this.app) return null;
+    try {
+      return (await this.auth().getUserByEmail(email)).uid;
+    } catch {
+      return null;
     }
   }
 

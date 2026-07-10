@@ -2,6 +2,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   Equals,
   IsArray,
   IsBoolean,
@@ -63,9 +64,10 @@ export class CreateRequisitionDto {
   @ApiProperty() @IsInt() @Min(0) @Validate(SalaryRangeValid) salaryMax!: number;
   /** Optional at draft time — managers may leave it to HR; HR can add it here. */
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(20000) jd?: string;
-  @ApiProperty({ type: [String] }) @IsArray() @IsString({ each: true }) approverIds!: string[];
+  @ApiProperty({ type: [String] }) @IsArray() @ArrayMaxSize(50) @IsString({ each: true }) approverIds!: string[];
   @ApiProperty({ type: [HiringTeamMemberDto] })
   @IsArray()
+  @ArrayMaxSize(100)
   @ValidateNested({ each: true })
   @Type(() => HiringTeamMemberDto)
   hiringTeam!: HiringTeamMemberDto[];
@@ -89,6 +91,7 @@ export class PublishingDto {
   @ApiProperty({ type: [PreScreenQuestionDto], required: false })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => PreScreenQuestionDto)
   preScreenQuestions?: PreScreenQuestionDto[];
@@ -148,6 +151,7 @@ export class GuideSectionDto {
 export class SetGuideTemplateDto {
   @ApiProperty({ type: [GuideSectionDto] })
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => GuideSectionDto)
   sections!: GuideSectionDto[];
@@ -207,6 +211,7 @@ export class ScorecardCriterionDto {
 export class SetScorecardCriteriaDto {
   @ApiProperty({ type: [ScorecardCriterionDto] })
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => ScorecardCriterionDto)
   criteria!: ScorecardCriterionDto[];
@@ -232,6 +237,7 @@ export class SubmitScorecardDto {
   status?: 'DRAFT' | 'SUBMITTED';
   @ApiProperty({ type: [ScorecardRatingDto] })
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => ScorecardRatingDto)
   ratings!: ScorecardRatingDto[];
@@ -263,6 +269,7 @@ export class ApplyDto {
   consent!: boolean;
   @ApiProperty({ type: [PreScreenAnswerDto] })
   @IsArray()
+  @ArrayMaxSize(50)
   @ValidateNested({ each: true })
   @Type(() => PreScreenAnswerDto)
   answers!: PreScreenAnswerDto[];

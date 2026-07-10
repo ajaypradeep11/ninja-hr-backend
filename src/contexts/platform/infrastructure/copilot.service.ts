@@ -9,7 +9,7 @@ function liveKey(): string | undefined {
   return process.env.ANTHROPIC_API_KEY || undefined;
 }
 
-const SYSTEM_BASE = `You are the HR Co-Pilot for TestHR, an agentic HR platform for the Canadian market.
+const SYSTEM_BASE = `You are the HR Co-Pilot for NinjaHR, an agentic HR platform for the Canadian market.
 Be concise and helpful — answer in 1-3 short sentences, no preamble. You understand Canadian
 provincial employment standards (ESA), Ontario Bill 149, and Quebec Law 25 at a high level.
 

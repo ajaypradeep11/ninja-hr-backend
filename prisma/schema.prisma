@@ -1,4 +1,4 @@
-// TestHR — Prisma schema (Postgres / Supabase)
+// NinjaHR — Prisma schema (Postgres / Supabase)
 // Generated client lives in src/platform/database/generated/prisma (gitignored).
 
 generator client {
@@ -681,7 +681,7 @@ model SalaryBenchmark {
 // Single-row company configuration (id is always "default").
 model CompanySettings {
   id               String   @id @default("default")
-  companyName      String   @default("TestHR Inc.")
+  companyName      String   @default("NinjaHR")
   provinces        String[]
   integrations     Json // { google: bool, m365: bool, slack: bool, sharepoint: bool, esign: bool, wagepoint: bool, payworks: bool, quickbooks: bool }
   recognitionPublic Boolean @default(true)

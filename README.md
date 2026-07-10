@@ -43,17 +43,17 @@ gcloud run deploy ninja-hr-api \
   --add-cloudsql-instances YOUR_PROJECT:YOUR_REGION:YOUR_INSTANCE \
   --set-env-vars DATABASE_URL="postgresql://...@localhost/testhr?host=/cloudsql/YOUR_PROJECT:YOUR_REGION:YOUR_INSTANCE" \
   --set-env-vars FIREBASE_PROJECT_ID=YOUR_PROJECT_ID \
-  --set-env-vars FIREBASE_CLIENT_EMAIL=YOUR_SERVICE_ACCOUNT_EMAIL \
-  --set-secrets FIREBASE_PRIVATE_KEY=firebase-private-key:latest \
   --set-secrets INTERNAL_API_KEY=internal-api-key:latest
 ```
 
 Notes:
 - Prefer `--set-secrets` (Secret Manager) over `--set-env-vars` for anything
-  sensitive (`FIREBASE_PRIVATE_KEY`, `INTERNAL_API_KEY`) — the command above
-  mixes both only to show the shape; wire real secrets through Secret Manager.
+  sensitive (`INTERNAL_API_KEY`, database passwords if split out of the URL).
 - Do **not** set `FIREBASE_AUTH_EMULATOR_HOST` or `FIREBASE_AUTH_DISABLED` in
   production — the service should verify real Firebase tokens.
+- On Cloud Run, the Firebase Admin SDK uses application default credentials.
+  Only set `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` when running
+  outside Google-managed runtime credentials.
 - The frontend's `NINJA_HR_API_URL` (in its own `apphosting.yaml`) must point
   at this Cloud Run service's URL.
-
+- For the full frontend/backend deployment sequence, see `../DEPLOYMENT.md`.

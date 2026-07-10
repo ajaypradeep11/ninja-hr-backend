@@ -3,6 +3,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/commo
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ActorCtx, type ActorContext } from 'src/platform/auth/actor-context';
+import { Roles } from 'src/platform/auth/roles.decorator';
 import { GetPerformanceReviewsQuery } from '../application/queries/get-performance-reviews.query';
 import { GetPipsQuery } from '../application/queries/get-pips.query';
 import { AdvanceReviewStateCommand } from '../application/commands/advance-review-state.command';
@@ -37,22 +38,30 @@ export class PerformanceController {
     private readonly commands: CommandBus,
   ) {}
 
+  // Reviews and PIPs are company-wide HR records with no per-actor scoping in
+  // their handlers, so they are HR-only. (Managers get the self-scoped growth
+  // surface below.) Without these gates any employee could read every
+  // colleague's review/PIP or issue a PIP against anyone.
   @Get('reviews')
+  @Roles('HR_ADMIN')
   getReviews() {
     return this.queries.execute(new GetPerformanceReviewsQuery());
   }
 
   @Get('pips')
+  @Roles('HR_ADMIN')
   getPips() {
     return this.queries.execute(new GetPipsQuery());
   }
 
   @Post('reviews/:id/advance')
+  @Roles('HR_ADMIN')
   advanceReviewState(@Param('id') id: string) {
     return this.commands.execute(new AdvanceReviewStateCommand(id));
   }
 
   @Post('pips')
+  @Roles('HR_ADMIN')
   issuePip(@Body() body: IssuePipDto) {
     return this.commands.execute(
       new IssuePipCommand({

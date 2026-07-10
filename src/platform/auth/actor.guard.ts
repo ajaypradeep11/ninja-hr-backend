@@ -32,9 +32,15 @@ export class ActorGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest<ActorRequest>();
 
     if (req.firebaseUser) {
-      const { uid, email } = req.firebaseUser;
+      const { uid, email, emailVerified } = req.firebaseUser;
       let user = await this.prisma.user.findUnique({ where: { firebaseUid: uid }, include: { employee: true } });
-      if (!user && email) {
+      // First-login account linking by email is only safe for a VERIFIED email.
+      // Otherwise an attacker could self-register a Firebase account using an
+      // existing employee's address (Firebase leaves it unverified) and, on the
+      // first API call, get their uid permanently bound to that employee's
+      // account — full takeover, including HR_ADMIN. Requiring email_verified
+      // closes that path while still auto-linking legitimately invited users.
+      if (!user && email && emailVerified) {
         user = await this.prisma.user.findFirst({ where: { employee: { email } }, include: { employee: true } });
         if (user) {
           await this.prisma.user.update({ where: { id: user.id }, data: { firebaseUid: uid } });
@@ -60,36 +66,45 @@ export class ActorGuard implements CanActivate {
       return true;
     }
 
-    // Trusted lane (internal key) — unchanged legacy behavior.
-    const actorId = req.headers['x-actor-id'];
+    // Trusted lane (internal key). Explicitly require req.trusted — set only by
+    // InternalKeyGuard after a constant-time key match — so the client-supplied
+    // x-actor-id / x-actor-persona headers below are honored ONLY for the
+    // trusted BFF, never for an unauthenticated caller. (InternalKeyGuard runs
+    // first and already rejects requests with neither lane, but gating here as
+    // well fails closed if that ordering ever regresses.)
+    if (req.trusted) {
+      const actorId = req.headers['x-actor-id'];
 
-    if (typeof actorId === 'string' && actorId.length > 0) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: actorId },
-        include: { employee: true },
-      });
-      if (!user) throw new UnauthorizedException('unknown actor');
+      if (typeof actorId === 'string' && actorId.length > 0) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: actorId },
+          include: { employee: true },
+        });
+        if (!user) throw new UnauthorizedException('unknown actor');
+        req.actor = {
+          userId: user.id,
+          employeeId: user.employeeId,
+          employeeName: user.employee.name,
+          department: user.employee.department,
+          role: user.role as ActorRole,
+          realUserId: user.id,
+        };
+        return true;
+      }
+
+      // Legacy fallback — no user identity, coarse persona only.
+      const persona = req.headers['x-actor-persona'];
       req.actor = {
-        userId: user.id,
-        employeeId: user.employeeId,
-        employeeName: user.employee.name,
-        department: user.employee.department,
-        role: user.role as ActorRole,
-        realUserId: user.id,
+        userId: null,
+        employeeId: null,
+        employeeName: null,
+        department: null,
+        role: persona === 'admin' ? 'HR_ADMIN' : 'EMPLOYEE',
+        realUserId: null,
       };
       return true;
     }
 
-    // Legacy fallback — no user identity, coarse persona only.
-    const persona = req.headers['x-actor-persona'];
-    req.actor = {
-      userId: null,
-      employeeId: null,
-      employeeName: null,
-      department: null,
-      role: persona === 'admin' ? 'HR_ADMIN' : 'EMPLOYEE',
-      realUserId: null,
-    };
-    return true;
+    throw new UnauthorizedException('unauthenticated');
   }
 }

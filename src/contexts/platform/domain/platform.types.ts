@@ -29,7 +29,7 @@ export interface CompanySettings {
 }
 
 export const DEFAULT_SETTINGS: CompanySettings = {
-  companyName: 'TestHR Inc.',
+  companyName: 'NinjaHR',
   provinces: ['ON', 'BC', 'QC', 'SK'],
   integrations: {
     google: true,

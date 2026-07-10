@@ -3,6 +3,7 @@ import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post }
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ActorCtx, type ActorContext } from 'src/platform/auth/actor-context';
+import { Roles } from 'src/platform/auth/roles.decorator';
 import { GetEmployeesQuery } from '../application/queries/get-employees.query';
 import { GetEmployeeByNameQuery } from '../application/queries/get-employee-by-name.query';
 import { GetEmployeeDetailQuery } from '../application/queries/get-employee-detail.query';
@@ -58,7 +59,9 @@ export class PeopleController {
     return this.queries.execute(new GetHeadcountQuery());
   }
 
+  /** Compensation bands — HR-only. */
   @Get('salary-benchmarks')
+  @Roles('HR_ADMIN')
   getSalaryBenchmarks() {
     return this.queries.execute(new GetSalaryBenchmarksQuery());
   }

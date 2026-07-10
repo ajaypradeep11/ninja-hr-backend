@@ -40,21 +40,25 @@ export class PlatformController {
   }
 
   @Put('settings')
+  @Roles('HR_ADMIN')
   saveSettings(@Body() body: SaveSettingsDto) {
     return this.commands.execute(new SaveSettingsCommand(body));
   }
 
   @Get('agent-runs')
+  @Roles('HR_ADMIN')
   getAgentRuns() {
     return this.queries.execute(new GetAgentRunsQuery());
   }
 
   @Post('agent-runs')
+  @Roles('HR_ADMIN')
   createAgentRun(@Body() body: CreateAgentRunDto) {
     return this.commands.execute(new CreateAgentRunCommand(body.intent));
   }
 
   @Patch('agent-runs/:id/status')
+  @Roles('HR_ADMIN')
   setAgentRunStatus(@Param('id') id: string, @Body() body: SetAgentRunStatusDto) {
     return this.commands.execute(new SetAgentRunStatusCommand(id, body.status));
   }

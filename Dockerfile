@@ -26,6 +26,11 @@ COPY --from=build /app/src/platform/database/generated ./src/platform/database/g
 # also imports the generated client, and needs tsx itself (a devDependency —
 # present because npm ci above installs the full node_modules, not --omit=dev).
 COPY --from=build /app/scripts ./scripts
+# Drop root: run as the image's built-in non-root `node` user so a compromised
+# process is not uid 0 inside the container. migrate deploy + node only read the
+# app tree and talk to the DB, so read ownership is sufficient.
+RUN chown -R node:node /app
+USER node
 EXPOSE 4000
 # Apply any pending migrations, then start. DATABASE_URL/DIRECT_URL come from compose env.
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]

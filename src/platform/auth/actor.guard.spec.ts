@@ -46,16 +46,29 @@ describe('ActorGuard firebase lane', () => {
     expect((req.actor as never)['realUserId']).toBe('hr1');
   });
 
-  it('falls back to email match and stamps the uid', async () => {
+  it('falls back to email match and stamps the uid (verified email only)', async () => {
     const prisma = makePrisma([{ ...EMP }]);
-    const req: Record<string, unknown> = { headers: {}, firebaseUser: { uid: 'fb-new', email: 'maya@x.ca' } };
+    const req: Record<string, unknown> = {
+      headers: {},
+      firebaseUser: { uid: 'fb-new', email: 'maya@x.ca', emailVerified: true },
+    };
     await new ActorGuard(prisma as never).canActivate(ctxFor(req));
     expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: { firebaseUid: 'fb-new' } }));
     expect((req.actor as never)['userId']).toBe('emp1');
   });
 
+  it('does NOT link by email when the email is unverified (account-takeover guard)', async () => {
+    const prisma = makePrisma([{ ...EMP }]);
+    const req: Record<string, unknown> = {
+      headers: {},
+      firebaseUser: { uid: 'fb-attacker', email: 'maya@x.ca', emailVerified: false },
+    };
+    await expect(new ActorGuard(prisma as never).canActivate(ctxFor(req))).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
   it('403s an unprovisioned firebase user', async () => {
-    const req = { headers: {}, firebaseUser: { uid: 'ghost', email: 'ghost@x.ca' } };
+    const req = { headers: {}, firebaseUser: { uid: 'ghost', email: 'ghost@x.ca', emailVerified: true } };
     await expect(new ActorGuard(makePrisma([HR]) as never).canActivate(ctxFor(req))).rejects.toThrow(
       ForbiddenException,
     );
@@ -74,7 +87,7 @@ describe('ActorGuard firebase lane', () => {
   it('ignores x-actor-id for non-admin firebase users', async () => {
     const req: Record<string, unknown> = {
       headers: { 'x-actor-id': 'hr1' },
-      firebaseUser: { uid: 'fb-new', email: 'maya@x.ca' },
+      firebaseUser: { uid: 'fb-new', email: 'maya@x.ca', emailVerified: true },
     };
     await new ActorGuard(makePrisma([HR, { ...EMP }]) as never).canActivate(ctxFor(req));
     expect((req.actor as never)['userId']).toBe('emp1');

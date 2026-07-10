@@ -66,22 +66,44 @@ export async function fetchSeededUsers(app: INestApplication): Promise<SeededUse
  * back to sign-in if the email already exists from a prior run). Only usable
  * when FIREBASE_AUTH_EMULATOR_HOST is set (i.e. under `npm run test:e2e:auth`,
  * driven by `firebase emulators:exec`).
+ *
+ * The account is marked email-verified before the returned token is minted:
+ * ActorGuard only links a Firebase user to an Employee by email when the email
+ * is verified (an unverified match would be an account-takeover vector), which
+ * mirrors the real invite→set-password flow that leaves the email verified.
  */
 export async function mintEmulatorToken(email: string, password = 'demo-password'): Promise<string> {
   const host = process.env.FIREBASE_AUTH_EMULATOR_HOST;
   if (!host) throw new Error('auth e2e requires the Firebase auth emulator (npm run test:e2e:auth)');
   const base = `http://${host}/identitytoolkit.googleapis.com/v1`;
+
+  const signIn = async (): Promise<{ idToken: string; localId: string }> => {
+    const res = await fetch(`${base}/accounts:signInWithPassword?key=fake`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true }),
+    });
+    if (!res.ok) throw new Error(`emulator sign-in failed: ${await res.text()}`);
+    return res.json() as Promise<{ idToken: string; localId: string }>;
+  };
+
   const signUp = await fetch(`${base}/accounts:signUp?key=fake`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ email, password, returnSecureToken: true }),
   });
-  if (signUp.ok) return (await signUp.json() as { idToken: string }).idToken;
-  const signIn = await fetch(`${base}/accounts:signInWithPassword?key=fake`, {
+  const initial = signUp.ok
+    ? ((await signUp.json()) as { idToken: string; localId: string })
+    : await signIn();
+
+  // Mark the email verified via the emulator admin endpoint ("Bearer owner" is
+  // the emulator's admin credential), then re-mint so the fresh token carries
+  // email_verified:true.
+  const projectId = process.env.FIREBASE_PROJECT_ID ?? 'demo-ninjahr';
+  await fetch(`http://${host}/identitytoolkit.googleapis.com/v1/projects/${projectId}/accounts:update`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password, returnSecureToken: true }),
+    headers: { 'content-type': 'application/json', authorization: 'Bearer owner' },
+    body: JSON.stringify({ localId: initial.localId, emailVerified: true }),
   });
-  if (!signIn.ok) throw new Error(`emulator sign-in failed: ${await signIn.text()}`);
-  return (await signIn.json() as { idToken: string }).idToken;
+  return (await signIn()).idToken;
 }

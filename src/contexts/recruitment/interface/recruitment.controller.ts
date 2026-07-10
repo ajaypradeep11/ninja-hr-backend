@@ -312,6 +312,10 @@ export class RecruitmentController {
     const file = (await this.queries.execute(new GetResumeFileQuery(id, actor))) as ResumeFile;
     const disposition = inline === 'true' ? 'inline' : 'attachment';
     res.setHeader('Content-Type', file.mimeType);
+    // Prevent MIME sniffing: the stored mimeType is client-supplied at upload
+    // time, so a text/plain résumé containing markup must not be sniffed to
+    // HTML and executed when viewed inline.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', `${disposition}; filename="${file.fileName.replace(/"/g, '')}"`);
     res.send(file.data);
   }
