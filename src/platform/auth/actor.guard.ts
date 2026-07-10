@@ -13,7 +13,9 @@
 // verified user's id so impersonation is traceable even while userId reflects
 // the impersonated target.
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../database/prisma.service';
+import { IS_PUBLIC } from './public.decorator';
 import type { ActorContext, ActorRole } from './actor-context';
 import type { VerifiedFirebaseUser } from './firebase-admin.service';
 
@@ -26,9 +28,19 @@ interface ActorRequest {
 
 @Injectable()
 export class ActorGuard implements CanActivate {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reflector: Reflector,
+  ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    // @Public() routes (health, company bootstrap) carry no credentials, so
+    // InternalKeyGuard lets them through without setting req.trusted /
+    // req.firebaseUser. They need no actor — skip resolution rather than hit the
+    // fail-closed throw below.
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [ctx.getHandler(), ctx.getClass()]);
+    if (isPublic) return true;
+
     const req = ctx.switchToHttp().getRequest<ActorRequest>();
 
     if (req.firebaseUser) {

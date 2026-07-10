@@ -36,12 +36,16 @@ function makePrisma(users: unknown[]) {
     },
   };
 }
-const ctxFor = (req: Record<string, unknown>) => ({ switchToHttp: () => ({ getRequest: () => req }) }) as never;
+// Reflector stub: routes are non-public unless a test uses publicReflector.
+const notPublic = { getAllAndOverride: () => false } as never;
+const publicReflector = { getAllAndOverride: () => true } as never;
+const ctxFor = (req: Record<string, unknown>) =>
+  ({ switchToHttp: () => ({ getRequest: () => req }), getHandler: () => undefined, getClass: () => undefined }) as never;
 
 describe('ActorGuard firebase lane', () => {
   it('resolves by firebaseUid', async () => {
     const req: Record<string, unknown> = { headers: {}, firebaseUser: { uid: 'fb-hr', email: 'sarah@x.ca' } };
-    await new ActorGuard(makePrisma([HR]) as never).canActivate(ctxFor(req));
+    await new ActorGuard(makePrisma([HR]) as never, notPublic).canActivate(ctxFor(req));
     expect((req.actor as never)['userId']).toBe('hr1');
     expect((req.actor as never)['realUserId']).toBe('hr1');
   });
@@ -52,7 +56,7 @@ describe('ActorGuard firebase lane', () => {
       headers: {},
       firebaseUser: { uid: 'fb-new', email: 'maya@x.ca', emailVerified: true },
     };
-    await new ActorGuard(prisma as never).canActivate(ctxFor(req));
+    await new ActorGuard(prisma as never, notPublic).canActivate(ctxFor(req));
     expect(prisma.user.update).toHaveBeenCalledWith(expect.objectContaining({ data: { firebaseUid: 'fb-new' } }));
     expect((req.actor as never)['userId']).toBe('emp1');
   });
@@ -63,13 +67,13 @@ describe('ActorGuard firebase lane', () => {
       headers: {},
       firebaseUser: { uid: 'fb-attacker', email: 'maya@x.ca', emailVerified: false },
     };
-    await expect(new ActorGuard(prisma as never).canActivate(ctxFor(req))).rejects.toThrow(ForbiddenException);
+    await expect(new ActorGuard(prisma as never, notPublic).canActivate(ctxFor(req))).rejects.toThrow(ForbiddenException);
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
   it('403s an unprovisioned firebase user', async () => {
     const req = { headers: {}, firebaseUser: { uid: 'ghost', email: 'ghost@x.ca', emailVerified: true } };
-    await expect(new ActorGuard(makePrisma([HR]) as never).canActivate(ctxFor(req))).rejects.toThrow(
+    await expect(new ActorGuard(makePrisma([HR]) as never, notPublic).canActivate(ctxFor(req))).rejects.toThrow(
       ForbiddenException,
     );
   });
@@ -79,7 +83,7 @@ describe('ActorGuard firebase lane', () => {
       headers: { 'x-actor-id': 'emp1' },
       firebaseUser: { uid: 'fb-hr', email: 'sarah@x.ca' },
     };
-    await new ActorGuard(makePrisma([HR, EMP]) as never).canActivate(ctxFor(req));
+    await new ActorGuard(makePrisma([HR, EMP]) as never, notPublic).canActivate(ctxFor(req));
     expect((req.actor as never)['userId']).toBe('emp1');
     expect((req.actor as never)['realUserId']).toBe('hr1');
   });
@@ -89,7 +93,7 @@ describe('ActorGuard firebase lane', () => {
       headers: { 'x-actor-id': 'hr1' },
       firebaseUser: { uid: 'fb-new', email: 'maya@x.ca', emailVerified: true },
     };
-    await new ActorGuard(makePrisma([HR, { ...EMP }]) as never).canActivate(ctxFor(req));
+    await new ActorGuard(makePrisma([HR, { ...EMP }]) as never, notPublic).canActivate(ctxFor(req));
     expect((req.actor as never)['userId']).toBe('emp1');
   });
 });
@@ -97,7 +101,7 @@ describe('ActorGuard firebase lane', () => {
 describe('ActorGuard trusted lane (legacy, unchanged)', () => {
   it('resolves the actor by x-actor-id and mirrors realUserId', async () => {
     const req: Record<string, unknown> = { headers: { 'x-actor-id': 'hr1' }, trusted: true };
-    await new ActorGuard(makePrisma([HR]) as never).canActivate(ctxFor(req));
+    await new ActorGuard(makePrisma([HR]) as never, notPublic).canActivate(ctxFor(req));
     expect((req.actor as never)['userId']).toBe('hr1');
     expect((req.actor as never)['realUserId']).toBe('hr1');
     expect((req.actor as never)['role']).toBe('HR_ADMIN');
@@ -105,14 +109,14 @@ describe('ActorGuard trusted lane (legacy, unchanged)', () => {
 
   it('throws UnauthorizedException for an unknown x-actor-id', async () => {
     const req: Record<string, unknown> = { headers: { 'x-actor-id': 'nope' }, trusted: true };
-    await expect(new ActorGuard(makePrisma([HR]) as never).canActivate(ctxFor(req))).rejects.toThrow(
+    await expect(new ActorGuard(makePrisma([HR]) as never, notPublic).canActivate(ctxFor(req))).rejects.toThrow(
       UnauthorizedException,
     );
   });
 
   it('falls back to persona when no x-actor-id is present', async () => {
     const req: Record<string, unknown> = { headers: { 'x-actor-persona': 'admin' }, trusted: true };
-    await new ActorGuard(makePrisma([]) as never).canActivate(ctxFor(req));
+    await new ActorGuard(makePrisma([]) as never, notPublic).canActivate(ctxFor(req));
     expect((req.actor as never)['userId']).toBeNull();
     expect((req.actor as never)['realUserId']).toBeNull();
     expect((req.actor as never)['role']).toBe('HR_ADMIN');
@@ -120,7 +124,23 @@ describe('ActorGuard trusted lane (legacy, unchanged)', () => {
 
   it('defaults persona to EMPLOYEE when absent', async () => {
     const req: Record<string, unknown> = { headers: {}, trusted: true };
-    await new ActorGuard(makePrisma([]) as never).canActivate(ctxFor(req));
+    await new ActorGuard(makePrisma([]) as never, notPublic).canActivate(ctxFor(req));
     expect((req.actor as never)['role']).toBe('EMPLOYEE');
+  });
+});
+
+describe('ActorGuard public + fail-closed', () => {
+  it('allows @Public routes with no credentials and resolves no actor', async () => {
+    const req: Record<string, unknown> = { headers: {} };
+    const ok = await new ActorGuard(makePrisma([]) as never, publicReflector).canActivate(ctxFor(req));
+    expect(ok).toBe(true);
+    expect(req.actor).toBeUndefined();
+  });
+
+  it('fails closed when the request is neither trusted, firebase, nor public', async () => {
+    const req: Record<string, unknown> = { headers: { 'x-actor-persona': 'admin' } };
+    await expect(new ActorGuard(makePrisma([]) as never, notPublic).canActivate(ctxFor(req))).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });
