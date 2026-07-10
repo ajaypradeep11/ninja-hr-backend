@@ -1,0 +1,57 @@
+# Deploys the backend to Cloud Run on every push to main.
+#
+# Auth uses Workload Identity Federation (keyless) — the values below are the
+# WIF provider resource name and the deploy service account, neither of which
+# is a secret, so no GitHub secrets are required. The one-time GCP setup
+# (WIF pool/provider + github-deployer SA + IAM roles) is documented in
+# .github/workflows/README-deploy.md.
+#
+# Deploying with only --image preserves the service's existing env vars,
+# Secret Manager references, ingress, and runtime service account.
+name: Deploy backend (Cloud Run)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ninjahr
+  REGION: us-central1
+  SERVICE: ninja-hr-api
+  IMAGE: us-central1-docker.pkg.dev/ninjahr/cloud-run-source-deploy/ninja-hr-api
+
+permissions:
+  contents: read
+  id-token: write # required to mint the OIDC token for Workload Identity Federation
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/1004736454481/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-deployer@ninjahr.iam.gserviceaccount.com
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" .
+          docker push "$IMAGE:$GITHUB_SHA"
+          docker push "$IMAGE:latest"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE:$GITHUB_SHA" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --quiet
