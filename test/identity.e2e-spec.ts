@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { createE2eApp, fetchSeededUsers, KEY, SeededUsers } from './e2e-utils';
+import { createE2eApp, fetchSeededUsers, KEY, SEED_COMPANY_ID, SeededUsers } from './e2e-utils';
 
 describe('Identity (e2e)', () => {
   let app: INestApplication;
@@ -19,6 +19,7 @@ describe('Identity (e2e)', () => {
       .get('/api/v1/identity/users')
       .set('x-internal-key', KEY)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .expect(200);
     const roles = res.body.map((u: { roleCode: string }) => u.roleCode);
     expect(roles).toEqual(expect.arrayContaining(['HR_ADMIN', 'MANAGER', 'EMPLOYEE']));
@@ -34,6 +35,7 @@ describe('Identity (e2e)', () => {
       .get(`/api/v1/identity/users/${users.hr.id}`)
       .set('x-internal-key', KEY)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .expect(200);
     expect(res.body.roleCode).toBe('HR_ADMIN');
     expect(res.body.name).toBe(users.hr.name);

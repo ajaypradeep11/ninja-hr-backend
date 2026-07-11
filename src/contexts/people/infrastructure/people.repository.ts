@@ -1,5 +1,5 @@
 import { NotFoundException, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type {
   Employee,
   EmployeeDetail,
@@ -18,7 +18,7 @@ import {
 
 @Injectable()
 export class PeopleRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   /** Redact fields non-HR viewers must not see in the roster/directory:
    *  - compensation (salary) is HR-only; leaking it to every employee is a

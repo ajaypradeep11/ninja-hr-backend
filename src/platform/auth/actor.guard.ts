@@ -15,6 +15,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../database/prisma.service';
+import { TenantContext } from '../database/tenant-context';
 import { IS_PUBLIC } from './public.decorator';
 import type { ActorContext, ActorRole } from './actor-context';
 import type { VerifiedFirebaseUser } from './firebase-admin.service';
@@ -31,6 +32,7 @@ export class ActorGuard implements CanActivate {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
+    private readonly tenant: TenantContext,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -65,6 +67,12 @@ export class ActorGuard implements CanActivate {
       if (user.role === 'HR_ADMIN' && typeof targetId === 'string' && targetId.length > 0 && targetId !== user.id) {
         const target = await this.prisma.user.findUnique({ where: { id: targetId }, include: { employee: true } });
         if (!target) throw new UnauthorizedException('unknown impersonation target');
+        // Impersonation is strictly intra-tenant: an HR_ADMIN may only act as a
+        // user in their own company. Crossing tenants here would be a direct
+        // data-isolation breach (the ALS tenant below follows the target).
+        if (target.companyId !== user.companyId) {
+          throw new ForbiddenException('cannot impersonate a user in another company');
+        }
         acting = target;
       }
       req.actor = {
@@ -74,7 +82,9 @@ export class ActorGuard implements CanActivate {
         department: acting.employee.department,
         role: acting.role as ActorRole,
         realUserId: user.id,
+        companyId: acting.companyId,
       };
+      this.tenant.set(acting.companyId);
       return true;
     }
 
@@ -100,12 +110,22 @@ export class ActorGuard implements CanActivate {
           department: user.employee.department,
           role: user.role as ActorRole,
           realUserId: user.id,
+          companyId: user.companyId,
         };
+        this.tenant.set(user.companyId);
         return true;
       }
 
-      // Legacy fallback — no user identity, coarse persona only.
+      // Legacy fallback — no user identity, coarse persona only. A trusted
+      // caller (internal key already verified) MAY name the tenant explicitly
+      // via x-company-id; this is the server-to-server / seed / e2e path (the
+      // production BFF uses the Firebase lane or x-actor-id, both of which carry
+      // their own company). Without it there is NO tenant and scoped queries
+      // fail closed — the tenant-less public flows resolve their company via
+      // slug/token in runInTenant instead.
       const persona = req.headers['x-actor-persona'];
+      const explicitCompany = req.headers['x-company-id'];
+      const companyId = typeof explicitCompany === 'string' && explicitCompany.length > 0 ? explicitCompany : null;
       req.actor = {
         userId: null,
         employeeId: null,
@@ -113,7 +133,9 @@ export class ActorGuard implements CanActivate {
         department: null,
         role: persona === 'admin' ? 'HR_ADMIN' : 'EMPLOYEE',
         realUserId: null,
+        companyId,
       };
+      if (companyId) this.tenant.set(companyId);
       return true;
     }
 

@@ -2,10 +2,10 @@
 // Generated client lives in src/platform/database/generated/prisma (gitignored).
 
 generator client {
-  provider      = "prisma-client"
-  output        = "../src/platform/database/generated/prisma"
-  moduleFormat  = "cjs"
-  runtime       = "nodejs"
+  provider     = "prisma-client"
+  output       = "../src/platform/database/generated/prisma"
+  moduleFormat = "cjs"
+  runtime      = "nodejs"
 }
 
 datasource db {
@@ -79,47 +79,47 @@ enum WorkEligibility {
 }
 
 model Employee {
-  id            String              @id @default(cuid())
-  name          String
-  title         String
-  department    String
-  province      Province
-  email         String              @unique
-  hireDate      DateTime
-  birthDate     DateTime
+  id                  String                @id @default(cuid())
+  name                String
+  title               String
+  department          String
+  province            Province
+  email               String                @unique
+  hireDate            DateTime
+  birthDate           DateTime
   /// Employee privacy: hide birthday from team calendars/dashboards (HR still sees DOB).
-  birthdayPrivate Boolean          @default(false)
-  manager       String?
-  status        EmployeeStatus      @default(ACTIVE)
-  salary        Int
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  birthdayPrivate     Boolean               @default(false)
+  manager             String?
+  status              EmployeeStatus        @default(ACTIVE)
+  salary              Int
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
   // --- HRIS record (Canadian) ---
-  employeeNumber   String?          @unique
-  preferredName    String?
-  pronouns         String?
-  personalEmail    String?
-  phone            String?
-  addressStreet    String?
-  addressCity      String?
-  addressProvince  Province?
-  addressPostal    String?
-  employmentType   EmploymentType?
-  workLocation     String?
-  payFrequency     PayFrequency?
-  workEligibility  WorkEligibility?
-  workPermitExpiry DateTime?
-  td1FederalOnFile    Boolean       @default(false)
-  td1ProvincialOnFile Boolean       @default(false)
-  sin              String?          // sensitive — never returned raw (masked in mapper)
-  bankInstitution  String?
-  bankTransit      String?
-  bankAccount      String?          // sensitive — masked
+  employeeNumber      String?               @unique
+  preferredName       String?
+  pronouns            String?
+  personalEmail       String?
+  phone               String?
+  addressStreet       String?
+  addressCity         String?
+  addressProvince     Province?
+  addressPostal       String?
+  employmentType      EmploymentType?
+  workLocation        String?
+  payFrequency        PayFrequency?
+  workEligibility     WorkEligibility?
+  workPermitExpiry    DateTime?
+  td1FederalOnFile    Boolean               @default(false)
+  td1ProvincialOnFile Boolean               @default(false)
+  sin                 String? // sensitive — never returned raw (masked in mapper)
+  bankInstitution     String?
+  bankTransit         String?
+  bankAccount         String? // sensitive — masked
   // --- relations ---
-  leaveRequests LeaveRequest[]
-  reviews       PerformanceReview[]
-  documents     VaultDocument[]
-  user          User?
+  leaveRequests       LeaveRequest[]
+  reviews             PerformanceReview[]
+  documents           VaultDocument[]
+  user                User?
   emergencyContacts   EmergencyContact[]
   trainingAssignments TrainingAssignment[]
   requisitionsCreated Requisition[]         @relation("RequisitionCreator")
@@ -135,6 +135,10 @@ model Employee {
   feedbackReceived    FeedbackRequest[]     @relation("FeedbackColleague")
   kudosGiven          Kudos[]               @relation("KudosFrom")
   kudosReceived       Kudos[]               @relation("KudosTo")
+  companyId           String?
+  company             Company?              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model EmergencyContact {
@@ -147,11 +151,16 @@ model EmergencyContact {
   altPhone     String?
   email        String?
   isPrimary    Boolean  @default(false)
+  companyId    String?
+  company      Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([companyId])
 }
 
-/* ---------------------------- Identity ----------------------------- */
+/**
+ * ---------------------------- Identity -----------------------------
+ */
 
 enum Role {
   HR_ADMIN
@@ -169,9 +178,15 @@ model User {
   /// Firebase Auth uid — stamped on first token-authenticated request (email match).
   firebaseUid String?  @unique
   createdAt   DateTime @default(now())
+  companyId   String?
+  company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
-/* ------------------------------ Leave ------------------------------ */
+/**
+ * ------------------------------ Leave ------------------------------
+ */
 
 enum LeaveType {
   VACATION
@@ -199,11 +214,16 @@ model LeaveRequest {
   days       Int
   /// Partial-day request: hours taken on `start` (1–7). Null = full day(s).
   hours      Int?
+  companyId  String?
+  company    Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([companyId])
 }
 
-/* --------------------------- Recruitment --------------------------- */
+/**
+ * --------------------------- Recruitment ---------------------------
+ */
 
 enum EmploymentType {
   FULL_TIME
@@ -266,37 +286,41 @@ enum ScorecardStatus {
 }
 
 model Requisition {
-  id                String         @id @default(cuid())
-  title             String
-  department        String
-  province          Province
-  type              EmploymentType
-  salaryMin         Int
-  salaryMax         Int
-  status            ReqStatus      @default(DRAFT)
-  applicants        Int            @default(0)
-  openedDate        DateTime
-  jd                String?
-  slug              String?        @unique
-  publishedAt       DateTime?
-  createdBy         Employee?      @relation("RequisitionCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdById       String?
-  rejectionFeedback String?
-  costOfHire        Int?
-  archivedAt        DateTime?
-  indeedEnabled     Boolean        @default(false)
-  linkedinEnabled   Boolean        @default(false)
+  id                 String                  @id @default(cuid())
+  title              String
+  department         String
+  province           Province
+  type               EmploymentType
+  salaryMin          Int
+  salaryMax          Int
+  status             ReqStatus               @default(DRAFT)
+  applicants         Int                     @default(0)
+  openedDate         DateTime
+  jd                 String?
+  slug               String?                 @unique
+  publishedAt        DateTime?
+  createdBy          Employee?               @relation("RequisitionCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById        String?
+  rejectionFeedback  String?
+  costOfHire         Int?
+  archivedAt         DateTime?
+  indeedEnabled      Boolean                 @default(false)
+  linkedinEnabled    Boolean                 @default(false)
   /// Admin-controlled Blind Hiring: when on, non-HR viewers get server-scrubbed
   /// candidate identities ("Candidate #n") across pipeline + detail views.
-  blindHiring       Boolean        @default(false)
-  indeedUrl         String?
-  linkedinUrl       String?
-  candidates        Candidate[]
-  approvals         RequisitionApproval[]
-  hiringTeam        HiringTeamMember[]
+  blindHiring        Boolean                 @default(false)
+  indeedUrl          String?
+  linkedinUrl        String?
+  candidates         Candidate[]
+  approvals          RequisitionApproval[]
+  hiringTeam         HiringTeamMember[]
   preScreenQuestions PreScreenQuestion[]
-  scorecardCriteria ScorecardCriterion[]
-  auditEvents       RecruitmentAuditEvent[]
+  scorecardCriteria  ScorecardCriterion[]
+  auditEvents        RecruitmentAuditEvent[]
+  companyId          String?
+  company            Company?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model RequisitionApproval {
@@ -308,10 +332,13 @@ model RequisitionApproval {
   decision      ApprovalDecision @default(PENDING)
   comment       String?
   decidedAt     DateTime?
+  companyId     String?
+  company       Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([requisitionId, approverId])
   @@index([requisitionId])
   @@index([approverId])
+  @@index([companyId])
 }
 
 model HiringTeamMember {
@@ -321,52 +348,61 @@ model HiringTeamMember {
   employee      Employee    @relation("HiringTeamEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId    String
   isPanelMember Boolean     @default(false)
+  companyId     String?
+  company       Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([requisitionId, employeeId])
   @@index([requisitionId])
   @@index([employeeId])
+  @@index([companyId])
 }
 
 model PreScreenQuestion {
-  id            String      @id @default(cuid())
-  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  id            String            @id @default(cuid())
+  requisition   Requisition       @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
   requisitionId String
-  order         Int         @default(0)
+  order         Int               @default(0)
   question      String
-  required      Boolean     @default(true)
+  required      Boolean           @default(true)
   answers       PreScreenAnswer[]
+  companyId     String?
+  company       Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([requisitionId])
+  @@index([companyId])
 }
 
 model Candidate {
-  id            String          @id @default(cuid())
-  requisition   Requisition?    @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
-  requisitionId String?
-  name          String
-  role          String
-  stage         CandidateStage  @default(APPLIED)
-  matchScore    Int             @default(0)
-  appliedDate   DateTime        @default(now())
-  interviewDate DateTime?
-  strengths     String[]
-  gaps          String[]
-  email         String?
-  resumeText    String?
-  source        CandidateSource @default(CAREERS)
-  portalToken   String?         @unique
-  consentAt     DateTime?
+  id             String                  @id @default(cuid())
+  requisition    Requisition?            @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  requisitionId  String?
+  name           String
+  role           String
+  stage          CandidateStage          @default(APPLIED)
+  matchScore     Int                     @default(0)
+  appliedDate    DateTime                @default(now())
+  interviewDate  DateTime?
+  strengths      String[]
+  gaps           String[]
+  email          String?
+  resumeText     String?
+  source         CandidateSource         @default(CAREERS)
+  portalToken    String?                 @unique
+  consentAt      DateTime?
   consentVersion String?
-  withdrawnAt   DateTime?
-  anonymizedAt  DateTime?
-  answers       PreScreenAnswer[]
+  withdrawnAt    DateTime?
+  anonymizedAt   DateTime?
+  answers        PreScreenAnswer[]
   communications CommunicationLog[]
-  scorecards    ScorecardSubmission[]
-  auditEvents   RecruitmentAuditEvent[]
-  resume        CandidateResume?
-  notes         CandidateNote[]
+  scorecards     ScorecardSubmission[]
+  auditEvents    RecruitmentAuditEvent[]
+  resume         CandidateResume?
+  notes          CandidateNote[]
+  companyId      String?
+  company        Company?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([requisitionId])
+  @@index([companyId])
 }
 
 // Resume file + AI-parsed data. Separate 1:1 so candidate list queries never
@@ -384,6 +420,10 @@ model CandidateResume {
   parseStatus       ResumeParseStatus @default(PENDING)
   parsedAt          DateTime?
   createdAt         DateTime          @default(now())
+  companyId         String?
+  company           Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 // Internal hiring-team notes — the Candidate Evaluation Profile discussion.
@@ -396,8 +436,11 @@ model CandidateNote {
   authorId    String?
   body        String
   createdAt   DateTime  @default(now())
+  companyId   String?
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([candidateId])
+  @@index([companyId])
 }
 
 model PreScreenAnswer {
@@ -407,18 +450,25 @@ model PreScreenAnswer {
   question    PreScreenQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
   questionId  String
   answer      String
+  companyId   String?
+  company     Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([candidateId, questionId])
+  @@index([companyId])
 }
 
 model CommunicationTemplate {
-  id        String          @id @default(cuid())
-  name      String          @unique
+  id        String             @id @default(cuid())
+  name      String             @unique
   subject   String
   body      String
-  trigger   TemplateTrigger @default(MANUAL)
-  isDefault Boolean         @default(false)
+  trigger   TemplateTrigger    @default(MANUAL)
+  isDefault Boolean            @default(false)
   logs      CommunicationLog[]
+  companyId String?
+  company   Company?           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model CommunicationLog {
@@ -438,8 +488,11 @@ model CommunicationLog {
   direction          CommDirection          @default(OUTBOUND)
   /// Raw From address on inbound mail, for provenance.
   fromAddress        String?
+  companyId          String?
+  company            Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([candidateId])
+  @@index([companyId])
 }
 
 enum CommDirection {
@@ -451,43 +504,53 @@ enum CommDirection {
 // inherits as its scorecard criteria. Edited by HR at /admin/recruitment/interview-guide;
 // per-requisition copies can then be tailored independently.
 model GuideTemplateSection {
-  id       String  @id @default(cuid())
-  name     String
-  weight   Int?
+  id        String   @id @default(cuid())
+  name      String
+  weight    Int?
   /// Guiding questions/prompts shown to interviewers under this section.
-  guidance String?
-  order    Int
+  guidance  String?
+  order     Int
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model ScorecardCriterion {
-  id            String      @id @default(cuid())
-  requisition   Requisition @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
+  id            String            @id @default(cuid())
+  requisition   Requisition       @relation(fields: [requisitionId], references: [id], onDelete: Cascade)
   requisitionId String
   name          String
   weight        Int?
   /// Guiding questions/prompts shown to interviewers under this section.
   guidance      String?
-  order         Int         @default(0)
+  order         Int               @default(0)
   ratings       ScorecardRating[]
+  companyId     String?
+  company       Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([requisitionId])
+  @@index([companyId])
 }
 
 model ScorecardSubmission {
-  id             String         @id @default(cuid())
-  candidate      Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  id             String            @id @default(cuid())
+  candidate      Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   candidateId    String
-  panelist       Employee       @relation("ScorecardPanelist", fields: [panelistId], references: [id], onDelete: Cascade)
+  panelist       Employee          @relation("ScorecardPanelist", fields: [panelistId], references: [id], onDelete: Cascade)
   panelistId     String
   recommendation Recommendation
   overallNotes   String?
-  status         ScorecardStatus @default(DRAFT)
+  status         ScorecardStatus   @default(DRAFT)
   interviewDate  DateTime?
-  submittedAt    DateTime       @default(now())
+  submittedAt    DateTime          @default(now())
   ratings        ScorecardRating[]
+  companyId      String?
+  company        Company?          @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([candidateId, panelistId])
   @@index([candidateId])
+  @@index([companyId])
 }
 
 model ScorecardRating {
@@ -498,8 +561,11 @@ model ScorecardRating {
   criterionId  String
   rating       Int
   notes        String?
+  companyId    String?
+  company      Company?            @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([submissionId, criterionId])
+  @@index([companyId])
 }
 
 model RecruitmentAuditEvent {
@@ -512,12 +578,17 @@ model RecruitmentAuditEvent {
   event         String
   detail        String?
   at            DateTime     @default(now())
+  companyId     String?
+  company       Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([requisitionId])
   @@index([candidateId])
+  @@index([companyId])
 }
 
-/* -------------------------- Performance ---------------------------- */
+/**
+ * -------------------------- Performance ----------------------------
+ */
 
 enum ReviewState {
   DRAFT
@@ -541,23 +612,32 @@ model PerformanceReview {
   state      ReviewState @default(DRAFT)
   score      Float?
   due        DateTime
+  companyId  String?
+  company    Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([companyId])
 }
 
 model Pip {
-  id              String   @id @default(cuid())
-  employeeName    String
-  employeeId      String?
-  manager         String
-  durationDays    Int
-  state           PipState @default(DRAFT)
-  signedByManager Boolean  @default(false)
-  signedByEmployee Boolean @default(false)
-  startDate       DateTime
+  id               String   @id @default(cuid())
+  employeeName     String
+  employeeId       String?
+  manager          String
+  durationDays     Int
+  state            PipState @default(DRAFT)
+  signedByManager  Boolean  @default(false)
+  signedByEmployee Boolean  @default(false)
+  startDate        DateTime
+  companyId        String?
+  company          Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
-/* ---------------------------- Training ----------------------------- */
+/**
+ * ---------------------------- Training -----------------------------
+ */
 
 enum TrainingStatus {
   ASSIGNED
@@ -568,21 +648,25 @@ enum TrainingStatus {
 // Company-created training catalog (no province-mandated content). HR builds
 // courses and assigns them to employees.
 model TrainingCourse {
-  id          String               @id @default(cuid())
-  title       String
-  category    String
-  description String?
-  contentUrl  String?
+  id           String               @id @default(cuid())
+  title        String
+  category     String
+  description  String?
+  contentUrl   String?
   durationMins Int?
-  passMark    Int?
-  active      Boolean              @default(true)
+  passMark     Int?
+  active       Boolean              @default(true)
   /// Peer-created courses flow DRAFT → PENDING_APPROVAL → PUBLISHED/REJECTED.
   /// HR-authored catalog courses are PUBLISHED from birth.
-  status      CourseStatus         @default(PUBLISHED)
-  createdBy   Employee?            @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  createdById String?
-  createdAt   DateTime             @default(now())
-  assignments TrainingAssignment[]
+  status       CourseStatus         @default(PUBLISHED)
+  createdBy    Employee?            @relation("CourseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdAt    DateTime             @default(now())
+  assignments  TrainingAssignment[]
+  companyId    String?
+  company      Company?             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 enum CourseStatus {
@@ -603,12 +687,17 @@ model TrainingAssignment {
   assignedAt  DateTime       @default(now())
   dueDate     DateTime?
   completedAt DateTime?
+  companyId   String?
+  company     Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([courseId, employeeId])
   @@index([employeeId])
+  @@index([companyId])
 }
 
-/* --------------------------- Offboarding --------------------------- */
+/**
+ * --------------------------- Offboarding ---------------------------
+ */
 
 enum OffboardingOwner {
   MANAGER
@@ -617,16 +706,22 @@ enum OffboardingOwner {
 }
 
 model OffboardingTask {
-  id       String           @id @default(cuid())
-  label    String
-  owner    OffboardingOwner
-  status   TaskStatus       @default(PENDING)
-  blocking Boolean          @default(false)
+  id        String           @id @default(cuid())
+  label     String
+  owner     OffboardingOwner
+  status    TaskStatus       @default(PENDING)
+  blocking  Boolean          @default(false)
   /// Internal employee delegated to own this task (HR delegation). Name only.
-  assignee String?
+  assignee  String?
+  companyId String?
+  company   Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
-/* ----------------------------- Agents ------------------------------ */
+/**
+ * ----------------------------- Agents ------------------------------
+ */
 
 enum AgentStatus {
   RUNNING
@@ -635,16 +730,22 @@ enum AgentStatus {
 }
 
 model AgentRun {
-  id       String      @id @default(cuid())
-  intent   String
-  status   AgentStatus
-  progress Int         @default(0)
-  affected Int         @default(0)
-  summary  String
-  time     String
+  id        String      @id @default(cuid())
+  intent    String
+  status    AgentStatus
+  progress  Int         @default(0)
+  affected  Int         @default(0)
+  summary   String
+  time      String
+  companyId String?
+  company   Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
-/* --------------------------- Documents ----------------------------- */
+/**
+ * --------------------------- Documents -----------------------------
+ */
 
 enum DocAccess {
   EMPLOYEE
@@ -662,30 +763,43 @@ model VaultDocument {
   uploaded   DateTime
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   employeeId String?
+  companyId  String?
+  company    Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([companyId])
 }
 
-/* -------------------------- Benchmarks ----------------------------- */
+/**
+ * -------------------------- Benchmarks -----------------------------
+ */
 
 model SalaryBenchmark {
-  id      String @id @default(cuid())
-  role    String
-  low     Int
-  high    Int
-  current Int
+  id        String   @id @default(cuid())
+  role      String
+  low       Int
+  high      Int
+  current   Int
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
-/* ----------------------------- Settings ---------------------------- */
+/**
+ * ----------------------------- Settings ----------------------------
+ */
 
 // Single-row company configuration (id is always "default").
 model CompanySettings {
-  id               String   @id @default("default")
-  companyName      String   @default("NinjaHR")
-  provinces        String[]
-  integrations     Json // { google: bool, m365: bool, slack: bool, sharepoint: bool, esign: bool, wagepoint: bool, payworks: bool, quickbooks: bool }
-  recognitionPublic Boolean @default(true)
-  updatedAt        DateTime @updatedAt
+  id                String   @id @default(cuid())
+  companyName       String   @default("NinjaHR")
+  provinces         String[]
+  integrations      Json // { google: bool, m365: bool, slack: bool, sharepoint: bool, esign: bool, wagepoint: bool, payworks: bool, quickbooks: bool }
+  recognitionPublic Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+  companyId         String?  @unique
+  company           Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model OnboardingCase {
@@ -711,6 +825,10 @@ model OnboardingCase {
   documents        CaseDocument[]
   consent          ConsentEntry[]
   auditLog         AuditEntry[]
+  companyId        String?
+  company          Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model ChecklistTask {
@@ -723,28 +841,34 @@ model ChecklistTask {
   blocking   Boolean        @default(false)
   dataAccess DataAccess     @default(GENERAL)
   order      Int            @default(0)
+  companyId  String?
+  company    Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([caseId])
+  @@index([companyId])
 }
 
 model CaseDocument {
-  id       String         @id @default(cuid())
-  case     OnboardingCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  caseId   String
-  name     String
-  type     String
-  folder   String
-  status   DocStatus      @default(NEEDS_VERIFICATION)
-  signedAt DateTime?
-  signedBy String?
-  ip       String?
+  id        String         @id @default(cuid())
+  case      OnboardingCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId    String
+  name      String
+  type      String
+  folder    String
+  status    DocStatus      @default(NEEDS_VERIFICATION)
+  signedAt  DateTime?
+  signedBy  String?
+  ip        String?
   /// Uploaded file (preboarding portal). Queries must SELECT-exclude `data`
   /// so case lists never drag binaries — the file streams via its own route.
-  mimeType String?
-  size     Int?
-  data     Bytes?
+  mimeType  String?
+  size      Int?
+  data      Bytes?
+  companyId String?
+  company   Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([caseId])
+  @@index([companyId])
 }
 
 model ConsentEntry {
@@ -755,21 +879,29 @@ model ConsentEntry {
   version   String
   timestamp DateTime       @default(now())
   ip        String
+  companyId String?
+  company   Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([caseId])
+  @@index([companyId])
 }
 
 model AuditEntry {
-  id     String         @id @default(cuid())
-  case   OnboardingCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  caseId String
-  at     DateTime       @default(now())
-  event  String
+  id        String         @id @default(cuid())
+  case      OnboardingCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  caseId    String
+  at        DateTime       @default(now())
+  event     String
+  companyId String?
+  company   Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([caseId])
+  @@index([companyId])
 }
 
-/* ------------------- Continuous performance (growth) ------------------- */
+/**
+ * ------------------- Continuous performance (growth) -------------------
+ */
 
 enum GoalStatus {
   ACTIVE
@@ -794,8 +926,11 @@ model Goal {
   updates    GoalUpdate[]
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
+  companyId  String?
+  company    Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([companyId])
 }
 
 model GoalUpdate {
@@ -805,23 +940,29 @@ model GoalUpdate {
   progress  Int
   note      String?
   createdAt DateTime @default(now())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([goalId])
+  @@index([companyId])
 }
 
 model OneOnOne {
-  id          String   @id @default(cuid())
-  employee    Employee @relation("SyncEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId  String
-  managerName String
-  scheduledAt DateTime
+  id            String   @id @default(cuid())
+  employee      Employee @relation("SyncEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId    String
+  managerName   String
+  scheduledAt   DateTime
   /// [{id, author, text}] — shared agenda both sides append to
-  talkingPoints Json   @default("[]")
+  talkingPoints Json     @default("[]")
   /// [{id, text, done}] — carried over from the previous meeting
-  actionItems   Json   @default("[]")
-  createdAt   DateTime @default(now())
+  actionItems   Json     @default("[]")
+  createdAt     DateTime @default(now())
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([companyId])
 }
 
 model FeedbackRequest {
@@ -836,9 +977,12 @@ model FeedbackRequest {
   response    String?
   createdAt   DateTime              @default(now())
   respondedAt DateTime?
+  companyId   String?
+  company     Company?              @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([requesterId])
   @@index([colleagueId])
+  @@index([companyId])
 }
 
 model Kudos {
@@ -850,11 +994,16 @@ model Kudos {
   message   String
   emoji     String?
   createdAt DateTime  @default(now())
+  companyId String?
+  company   Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([toId])
+  @@index([companyId])
 }
 
-/* -------------------- Letter Lab & Calculator Engine ------------------- */
+/**
+ * -------------------- Letter Lab & Calculator Engine -------------------
+ */
 
 /// HR document template with {{variable}} placeholders (Letter Lab).
 model LetterTemplate {
@@ -864,6 +1013,10 @@ model LetterTemplate {
   body      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 enum CalcCategory {
@@ -884,4 +1037,58 @@ model CalcRule {
   value     Float
   active    Boolean      @default(true)
   createdAt DateTime     @default(now())
+  companyId String?
+  company   Company?     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+// Tenant root. Every table above carries companyId -> Company; deleting a
+// Company cascades to all of its data.
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  employee              Employee[]
+  emergencyContact      EmergencyContact[]
+  user                  User[]
+  leaveRequest          LeaveRequest[]
+  requisition           Requisition[]
+  requisitionApproval   RequisitionApproval[]
+  hiringTeamMember      HiringTeamMember[]
+  preScreenQuestion     PreScreenQuestion[]
+  candidate             Candidate[]
+  candidateResume       CandidateResume[]
+  candidateNote         CandidateNote[]
+  preScreenAnswer       PreScreenAnswer[]
+  communicationTemplate CommunicationTemplate[]
+  communicationLog      CommunicationLog[]
+  guideTemplateSection  GuideTemplateSection[]
+  scorecardCriterion    ScorecardCriterion[]
+  scorecardSubmission   ScorecardSubmission[]
+  scorecardRating       ScorecardRating[]
+  recruitmentAuditEvent RecruitmentAuditEvent[]
+  performanceReview     PerformanceReview[]
+  pip                   Pip[]
+  trainingCourse        TrainingCourse[]
+  trainingAssignment    TrainingAssignment[]
+  offboardingTask       OffboardingTask[]
+  agentRun              AgentRun[]
+  vaultDocument         VaultDocument[]
+  salaryBenchmark       SalaryBenchmark[]
+  companySettings       CompanySettings?
+  onboardingCase        OnboardingCase[]
+  checklistTask         ChecklistTask[]
+  caseDocument          CaseDocument[]
+  consentEntry          ConsentEntry[]
+  auditEntry            AuditEntry[]
+  goal                  Goal[]
+  goalUpdate            GoalUpdate[]
+  oneOnOne              OneOnOne[]
+  feedbackRequest       FeedbackRequest[]
+  kudos                 Kudos[]
+  letterTemplate        LetterTemplate[]
+  calcRule              CalcRule[]
 }

@@ -17,6 +17,13 @@ import { PrismaExceptionFilter } from '../src/platform/database/prisma-exception
 
 export const KEY = process.env.INTERNAL_API_KEY ?? 'dev-internal-key';
 
+// The demo seed populates this single tenant (see prisma/seed.ts). Persona-only
+// requests (no x-actor-id to resolve a company from) name it explicitly via the
+// trusted-lane x-company-id header so tenant-scoped queries resolve instead of
+// failing closed. Requests that carry x-actor-id derive their company from the
+// seeded user and need no hint.
+export const SEED_COMPANY_ID = 'seed-company';
+
 export async function createE2eApp(): Promise<INestApplication> {
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = mod.createNestApplication();
@@ -49,6 +56,7 @@ export async function fetchSeededUsers(app: INestApplication): Promise<SeededUse
     .get('/api/v1/identity/users')
     .set('x-internal-key', KEY)
     .set('x-actor-persona', 'admin')
+    .set('x-company-id', SEED_COMPANY_ID)
     .expect(200);
   const users = res.body as SeededUser[];
   const byRole = (role: SeededUser['roleCode']) => users.find((u) => u.roleCode === role);

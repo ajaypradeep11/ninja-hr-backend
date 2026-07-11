@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type { ActorContext } from 'src/platform/auth/actor-context';
 import type {
   FeedbackRequestInput,
@@ -30,7 +30,7 @@ const FEEDBACK_INCLUDE = {
 
 @Injectable()
 export class GrowthRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   /* ------------------------------ Reads ------------------------------ */
 

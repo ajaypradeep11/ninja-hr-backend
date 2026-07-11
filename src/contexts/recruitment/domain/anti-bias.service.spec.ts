@@ -10,6 +10,7 @@ const human: ActorContext = {
   department: 'People',
   role: 'HR_ADMIN',
   realUserId: 'u1',
+  companyId: 'c1',
 };
 
 const automation: ActorContext = {
@@ -19,6 +20,7 @@ const automation: ActorContext = {
   department: null,
   role: 'HR_ADMIN',
   realUserId: null,
+  companyId: 'c1',
 };
 
 describe('Anti-Bias Shield', () => {

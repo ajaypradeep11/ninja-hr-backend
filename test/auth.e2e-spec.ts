@@ -4,7 +4,7 @@
 // user by firebaseUid/email, and /identity/me reports the resolved actor.
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { createE2eApp, fetchSeededUsers, mintEmulatorToken, KEY, SeededUsers } from './e2e-utils';
+import { createE2eApp, fetchSeededUsers, mintEmulatorToken, KEY, SEED_COMPANY_ID, SeededUsers } from './e2e-utils';
 
 describe('Firebase auth lane (e2e)', () => {
   let app: INestApplication;
@@ -20,6 +20,7 @@ describe('Firebase auth lane (e2e)', () => {
       .get('/api/v1/people/employees')
       .set('x-internal-key', KEY)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .expect(200);
     hrEmail = res.body.find((e: { id: string }) => e.id === seeded.hr.employeeId).email;
   });

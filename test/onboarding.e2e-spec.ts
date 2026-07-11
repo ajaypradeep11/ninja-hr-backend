@@ -9,6 +9,7 @@ import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { InternalKeyGuard } from '../src/platform/auth/internal-key.guard';
 import { FirebaseAdminService } from '../src/platform/auth/firebase-admin.service';
+import { SEED_COMPANY_ID } from './e2e-utils';
 
 describe('Onboarding (e2e)', () => {
   let app: INestApplication;
@@ -26,6 +27,7 @@ describe('Onboarding (e2e)', () => {
       .post('/api/v1/onboarding/cases')
       .set('x-internal-key', key)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .send({ name: 'E2E Seed', province: 'ON', startDate: '2026-08-01', personalEmail: 'e2e-seed@test.com' })
       .expect(201);
   });
@@ -40,6 +42,7 @@ describe('Onboarding (e2e)', () => {
       .get('/api/v1/onboarding/cases')
       .set('x-internal-key', key)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .expect(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThan(0);
@@ -52,6 +55,7 @@ describe('Onboarding (e2e)', () => {
       .post('/api/v1/onboarding/cases')
       .set('x-internal-key', key)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .send({ name: 'E2E Tester', province: 'ON', startDate: '2026-08-01', personalEmail: 'e2e@test.com' })
       .expect(201);
     expect(res.body.status).toBe('Invited');
@@ -63,6 +67,7 @@ describe('Onboarding (e2e)', () => {
       .post('/api/v1/onboarding/cases')
       .set('x-internal-key', key)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .send({ name: 'E2E Gated', province: 'ON', startDate: '2026-08-01', personalEmail: 'e2e-gated@test.com' })
       .expect(201);
 
@@ -70,6 +75,7 @@ describe('Onboarding (e2e)', () => {
       .post(`/api/v1/onboarding/cases/${createRes.body.id}/activate`)
       .set('x-internal-key', key)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .expect(409);
     expect(activateRes.body.message).toContain('Cannot activate');
   });
@@ -79,6 +85,7 @@ describe('Onboarding (e2e)', () => {
       .post('/api/v1/onboarding/cases')
       .set('x-internal-key', key)
       .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID)
       .send({ name: 'E2E Activate', province: 'ON', startDate: '2026-08-01', personalEmail: 'e2e-activate@test.com' })
       .expect(201);
     const { id, token } = createRes.body as {
@@ -102,6 +109,7 @@ describe('Onboarding (e2e)', () => {
         .patch(`/api/v1/onboarding/cases/${id}/tasks/${task.id}`)
         .set('x-internal-key', key)
         .set('x-actor-persona', 'admin')
+        .set('x-company-id', SEED_COMPANY_ID)
         .send({ status: 'Completed' })
         .expect(200);
     }
@@ -110,7 +118,8 @@ describe('Onboarding (e2e)', () => {
     const activateRes = await request(app.getHttpServer())
       .post(`/api/v1/onboarding/cases/${id}/activate`)
       .set('x-internal-key', key)
-      .set('x-actor-persona', 'admin');
+      .set('x-actor-persona', 'admin')
+      .set('x-company-id', SEED_COMPANY_ID);
     expect([200, 201]).toContain(activateRes.status);
 
     expect(activateRes.body.status).toBe('Active');

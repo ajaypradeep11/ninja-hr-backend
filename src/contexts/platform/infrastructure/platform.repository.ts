@@ -1,6 +1,6 @@
 // src/contexts/platform/infrastructure/platform.repository.ts
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type {
   CompanySettings,
   AgentRun,
@@ -19,33 +19,34 @@ import {
 
 @Injectable()
 export class PlatformRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   async getSettings(): Promise<CompanySettings> {
-    const row = await this.prisma.companySettings.findUnique({ where: { id: 'default' } });
+    // CompanySettings is 1:1 per company; the tenant extension scopes findFirst
+    // to the caller's company, so this returns THIS company's row (or defaults).
+    const row = await this.prisma.companySettings.findFirst({});
     if (!row) return DEFAULT_SETTINGS;
     return settingsRowToDto(row);
   }
 
   async saveSettings(settings: CompanySettings): Promise<CompanySettings> {
-    await this.prisma.companySettings.upsert({
-      where: { id: 'default' },
-      update: {
-        companyName: settings.companyName,
-        provinces: settings.provinces,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        integrations: settings.integrations as any,
-        recognitionPublic: settings.recognitionPublic,
-      },
-      create: {
-        id: 'default',
-        companyName: settings.companyName,
-        provinces: settings.provinces,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        integrations: settings.integrations as any,
-        recognitionPublic: settings.recognitionPublic,
-      },
-    });
+    // Get-or-create keyed by tenant (not a hardcoded id): find the company's
+    // scoped row, update it if present, otherwise create one (the extension
+    // stamps companyId on create). Avoids upsert, whose unique `where` can't be
+    // expressed from ALS context alone.
+    const existing = await this.prisma.companySettings.findFirst({});
+    const data = {
+      companyName: settings.companyName,
+      provinces: settings.provinces,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      integrations: settings.integrations as any,
+      recognitionPublic: settings.recognitionPublic,
+    };
+    if (existing) {
+      await this.prisma.companySettings.update({ where: { id: existing.id }, data });
+    } else {
+      await this.prisma.companySettings.create({ data });
+    }
     return this.getSettings();
   }
 

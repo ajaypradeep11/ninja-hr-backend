@@ -1,6 +1,6 @@
 // src/contexts/performance/infrastructure/performance.repository.ts
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type { PerformanceReview, Pip } from '../domain/performance.types';
 import {
   reviewStateToDb,
@@ -19,7 +19,7 @@ export interface NewPipInput {
 
 @Injectable()
 export class PerformanceRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   async getReviews(): Promise<PerformanceReview[]> {
     const rows = await this.prisma.performanceReview.findMany({
