@@ -13,6 +13,8 @@ export interface ActorContext {
   role: ActorRole;
   /** The verified user when impersonating via x-actor-id; equals userId otherwise. */
   realUserId: string | null;
+  /** The caller's tenant. null on the persona-only fallback (no tenant data access). */
+  companyId: string | null;
 }
 
 /** Injects the resolved ActorContext (set by ActorGuard) into a handler param. */
@@ -27,6 +29,7 @@ export const ActorCtx = createParamDecorator((_data: unknown, ctx: ExecutionCont
       department: null,
       role: 'EMPLOYEE',
       realUserId: null,
+      companyId: null,
     }
   );
 });

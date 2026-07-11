@@ -7,7 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type { ActorContext } from 'src/platform/auth/actor-context';
 import {
   STAGE_TO_PORTAL,
@@ -133,7 +133,7 @@ function slugify(title: string, id: string): string {
 @Injectable()
 export class RecruitmentRepository {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: TenantPrismaService,
     private readonly resumeParser: ResumeParserService,
   ) {}
 

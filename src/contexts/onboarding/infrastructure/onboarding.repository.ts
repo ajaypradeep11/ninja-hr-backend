@@ -1,6 +1,6 @@
 // src/contexts/onboarding/infrastructure/onboarding.repository.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type { ProvinceCode } from 'src/shared-kernel/province';
 import { rowToCase, caseStatusToDb, ownerToDb, taskStatusToDb, accessToDb, docStatusToDb } from './onboarding.mapper';
 import type { OnboardingCase, ChecklistTask, ChecklistTaskInput, CaseDocument } from '../domain/onboarding.types';
@@ -22,7 +22,7 @@ const INCLUDE = {
 
 @Injectable()
 export class OnboardingRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   async findById(id: string): Promise<OnboardingCase | null> {
     const row = await this.prisma.onboardingCase.findUnique({ where: { id }, include: INCLUDE });

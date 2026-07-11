@@ -4,6 +4,7 @@ import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { Roles } from 'src/platform/auth/roles.decorator';
+import { TenantResolver } from 'src/platform/database/tenant-resolver.service';
 import { ListCasesQuery } from '../application/queries/list-cases.query';
 import { GetPipelineQuery } from '../application/queries/get-pipeline.query';
 import { GetCaseByTokenQuery } from '../application/queries/get-case-by-token.query';
@@ -29,7 +30,11 @@ import type { FormFlags } from '../domain/onboarding.types';
 @ApiTags('onboarding')
 @Controller('onboarding')
 export class OnboardingController {
-  constructor(private readonly queries: QueryBus, private readonly commands: CommandBus) {}
+  constructor(
+    private readonly queries: QueryBus,
+    private readonly commands: CommandBus,
+    private readonly tenantResolver: TenantResolver,
+  ) {}
 
   // HR management surface below. The `cases/by-token/*` new-hire routes stay
   // ungated on purpose — they are token-scoped and reached over the trusted
@@ -57,18 +62,26 @@ export class OnboardingController {
    * lane). Returns null for an unknown/expired token. */
   @Get('cases/by-token/:token')
   getByToken(@Param('token') token: string) {
-    return this.queries.execute(new GetCaseByTokenQuery(token));
+    // Tenant-less new-hire lane: the invite token identifies the company.
+    // Returns null (not 404) for an unknown/expired token, per the read contract.
+    return this.tenantResolver.runByCaseTokenOrNull(token, () =>
+      this.queries.execute(new GetCaseByTokenQuery(token)),
+    );
   }
 
   @Post('cases/by-token/:token/forms/:key')
   markForm(@Param('token') token: string, @Param('key') key: keyof FormFlags) {
-    return this.commands.execute(new MarkFormCommand(token, key));
+    return this.tenantResolver.runByCaseToken(token, () =>
+      this.commands.execute(new MarkFormCommand(token, key)),
+    );
   }
 
   /** Standard new-hire form (Ontario) — validated, stored, SIN/bank masked on read. */
   @Post('cases/by-token/:token/profile')
   submitProfile(@Param('token') token: string, @Body() body: NewHireProfileDto) {
-    return this.commands.execute(new SubmitProfileCommand(token, body));
+    return this.tenantResolver.runByCaseToken(token, () =>
+      this.commands.execute(new SubmitProfileCommand(token, body)),
+    );
   }
 
   /**
@@ -77,8 +90,10 @@ export class OnboardingController {
    */
   @Post('cases/by-token/:token/documents')
   uploadDocument(@Param('token') token: string, @Body() body: UploadCaseDocumentDto) {
-    return this.commands.execute(
-      new UploadCaseDocumentCommand(token, body.kind, body.fileName, body.mimeType, body.dataBase64),
+    return this.tenantResolver.runByCaseToken(token, () =>
+      this.commands.execute(
+        new UploadCaseDocumentCommand(token, body.kind, body.fileName, body.mimeType, body.dataBase64),
+      ),
     );
   }
 
@@ -107,12 +122,16 @@ export class OnboardingController {
 
   @Post('cases/by-token/:token/consent')
   addConsent(@Param('token') token: string, @Body() body: PolicyDto, @Ip() ip: string) {
-    return this.commands.execute(new AddConsentCommand(token, body.policy, ip));
+    return this.tenantResolver.runByCaseToken(token, () =>
+      this.commands.execute(new AddConsentCommand(token, body.policy, ip)),
+    );
   }
 
   @Post('cases/by-token/:token/finalize')
   finalize(@Param('token') token: string, @Ip() ip: string) {
-    return this.commands.execute(new FinalizeSubmissionCommand(token, ip));
+    return this.tenantResolver.runByCaseToken(token, () =>
+      this.commands.execute(new FinalizeSubmissionCommand(token, ip)),
+    );
   }
 
   @Put('cases/:id/checklist')

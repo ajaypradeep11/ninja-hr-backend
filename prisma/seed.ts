@@ -3,10 +3,33 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/platform/database/generated/prisma/client';
+import { tenantExtension } from '../src/platform/database/tenant.extension';
+import type { TenantContext } from '../src/platform/database/tenant-context';
 
-const prisma = new PrismaClient({
+// The demo seed populates a single tenant. Fixed id + slug so it is idempotent
+// and so the e2e harness can address this company explicitly (x-company-id).
+const SEED_COMPANY_ID = 'seed-company';
+const SEED_COMPANY_SLUG = 'acme';
+const SEED_COMPANY_NAME = 'Acme Inc.';
+
+const base = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
+
+// Every seeded row belongs to the seed company. Rather than stamp companyId on
+// ~20 models by hand, run the whole seed through the same tenant extension the
+// app uses: it auto-scopes reads and stamps companyId on all writes. (The seed
+// has no nested relation writes, which the extension would not stamp.)
+const prisma = base.$extends(tenantExtension({ companyId: SEED_COMPANY_ID } as unknown as TenantContext));
+
+async function seedCompany(): Promise<void> {
+  await base.company.upsert({
+    where: { id: SEED_COMPANY_ID },
+    update: { name: SEED_COMPANY_NAME, slug: SEED_COMPANY_SLUG },
+    create: { id: SEED_COMPANY_ID, name: SEED_COMPANY_NAME, slug: SEED_COMPANY_SLUG },
+  });
+  console.log(`company: ${SEED_COMPANY_NAME} (${SEED_COMPANY_SLUG})`);
+}
 
 /* ------------------------------ Identity ------------------------------ */
 
@@ -502,6 +525,7 @@ async function seedCalcRules(): Promise<void> {
 /* -------------------------------- Main -------------------------------- */
 
 async function main(): Promise<void> {
+  await seedCompany();
   await seedUsers();
   await seedTemplates();
   await seedHris();
@@ -516,4 +540,4 @@ main()
     console.error(e);
     process.exitCode = 1;
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => base.$disconnect());

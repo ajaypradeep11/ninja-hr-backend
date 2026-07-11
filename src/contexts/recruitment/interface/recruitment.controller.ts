@@ -5,6 +5,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ActorCtx, type ActorContext } from 'src/platform/auth/actor-context';
 import { Roles } from 'src/platform/auth/roles.decorator';
+import { TenantResolver } from 'src/platform/database/tenant-resolver.service';
 import { GetRequisitionsQuery } from '../application/queries/get-requisitions.query';
 import { GetRequisitionDetailQuery } from '../application/queries/get-requisition-detail.query';
 import { GetRequisitionCandidatesQuery } from '../application/queries/get-requisition-candidates.query';
@@ -75,6 +76,7 @@ export class RecruitmentController {
   constructor(
     private readonly queries: QueryBus,
     private readonly commands: CommandBus,
+    private readonly tenantResolver: TenantResolver,
   ) {}
 
   /* --------------------------- Requisitions -------------------------- */
@@ -281,10 +283,13 @@ export class RecruitmentController {
   inboundEmail(@Body() body: InboundEmailDto) {
     const token = /reply\+([A-Za-z0-9_-]+)@/.exec(body.to)?.[1];
     if (!token) throw new BadRequestException('Unroutable To: address — expected reply+<token>@…');
-    return this.commands.execute(
-      new RecordInboundCommand(
-        { portalToken: token },
-        { from: body.from, subject: body.subject, body: body.text },
+    // Webhook has no session; the portal token identifies the candidate's company.
+    return this.tenantResolver.runByPortalToken(token, () =>
+      this.commands.execute(
+        new RecordInboundCommand(
+          { portalToken: token },
+          { from: body.from, subject: body.subject, body: body.text },
+        ),
       ),
     );
   }
@@ -450,31 +455,42 @@ export class RecruitmentController {
 
   /* --------------- Public job board (served via the BFF) -------------- */
 
-  /** Published postings — powers both the internal board and the careers site. */
+  /**
+   * Published postings. The internal board calls this authenticated (tenant
+   * already resolved from the session). The public careers site passes
+   * `?company=<slug>`, which has no session — resolve that company's tenant
+   * explicitly before scoping the query.
+   */
   @Get('jobs')
-  getJobs() {
-    return this.queries.execute(new GetJobsQuery());
+  getJobs(@Query('company') companySlug?: string) {
+    const run = () => this.queries.execute(new GetJobsQuery());
+    return companySlug ? this.tenantResolver.runByCompanySlug(companySlug, run) : run();
   }
 
   @Get('jobs/:slug')
   getJobBySlug(@Param('slug') slug: string) {
-    return this.queries.execute(new GetJobBySlugQuery(slug));
+    // The requisition slug is globally unique → it identifies the company.
+    return this.tenantResolver.runByRequisitionSlug(slug, () =>
+      this.queries.execute(new GetJobBySlugQuery(slug)),
+    );
   }
 
   /** Careers-page application — consent required; returns the portal token. */
   @Post('jobs/:slug/apply')
   applyToJob(@Param('slug') slug: string, @Body() body: ApplyDto) {
-    return this.commands.execute(
-      new ApplyToJobCommand(slug, {
-        name: body.name,
-        email: body.email,
-        resumeText: body.resumeText,
-        resumeFileBase64: body.resumeFileBase64,
-        resumeFileName: body.resumeFileName,
-        resumeMimeType: body.resumeMimeType,
-        source: body.source ?? 'Careers Site',
-        answers: body.answers,
-      }),
+    return this.tenantResolver.runByRequisitionSlug(slug, () =>
+      this.commands.execute(
+        new ApplyToJobCommand(slug, {
+          name: body.name,
+          email: body.email,
+          resumeText: body.resumeText,
+          resumeFileBase64: body.resumeFileBase64,
+          resumeFileName: body.resumeFileName,
+          resumeMimeType: body.resumeMimeType,
+          source: body.source ?? 'Careers Site',
+          answers: body.answers,
+        }),
+      ),
     );
   }
 
@@ -482,11 +498,15 @@ export class RecruitmentController {
 
   @Get('portal/by-token/:token')
   getPortalView(@Param('token') token: string) {
-    return this.queries.execute(new GetPortalViewQuery(token));
+    return this.tenantResolver.runByPortalToken(token, () =>
+      this.queries.execute(new GetPortalViewQuery(token)),
+    );
   }
 
   @Post('portal/by-token/:token/withdraw')
   withdrawApplication(@Param('token') token: string) {
-    return this.commands.execute(new WithdrawApplicationCommand(token));
+    return this.tenantResolver.runByPortalToken(token, () =>
+      this.commands.execute(new WithdrawApplicationCommand(token)),
+    );
   }
 }
