@@ -1,12 +1,12 @@
 // src/contexts/offboarding/infrastructure/offboarding.repository.ts
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type { OffboardingOwner, OffboardingStatus, OffboardingTask } from '../domain/offboarding.types';
 import { ownerToDb, statusToDb, rowToTask } from './offboarding.mapper';
 
 @Injectable()
 export class OffboardingRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   async getTasks(): Promise<OffboardingTask[]> {
     const rows = await this.prisma.offboardingTask.findMany();

@@ -1,6 +1,6 @@
 // src/contexts/workplace/infrastructure/workplace.repository.ts
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type { ActorContext } from 'src/platform/auth/actor-context';
 import type {
   VaultDocument,
@@ -28,7 +28,7 @@ const ASSIGNMENT_INCLUDE = { course: true, employee: true } as const;
 
 @Injectable()
 export class WorkplaceRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   async getVaultDocuments(actor?: ActorContext): Promise<VaultDocument[]> {
     // HR sees the whole vault. Everyone else must NOT see another employee's

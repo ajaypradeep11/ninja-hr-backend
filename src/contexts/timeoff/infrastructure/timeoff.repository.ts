@@ -1,6 +1,6 @@
 // src/contexts/timeoff/infrastructure/timeoff.repository.ts
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type { ActorContext } from 'src/platform/auth/actor-context';
 import type { LeaveRequest, LeaveStatus, LeaveType } from '../domain/timeoff.types';
 import { leaveStatusToDb, leaveTypeToDb, rowToLeaveRequest } from './timeoff.mapper';
@@ -27,7 +27,7 @@ export interface UpdateLeaveInput {
 
 @Injectable()
 export class TimeoffRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   /**
    * Actor-scoped list — this IS the routing:

@@ -1,6 +1,6 @@
 // src/contexts/platform/infrastructure/platform.repository.ts
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/platform/database/prisma.service';
+import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type {
   CompanySettings,
   AgentRun,
@@ -19,7 +19,7 @@ import {
 
 @Injectable()
 export class PlatformRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: TenantPrismaService) {}
 
   async getSettings(): Promise<CompanySettings> {
     const row = await this.prisma.companySettings.findUnique({ where: { id: 'default' } });
