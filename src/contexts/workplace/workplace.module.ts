@@ -26,6 +26,7 @@ import {
   IssueLetterHandler,
   UpdateLetterTemplateHandler,
 } from './application/letters.handlers';
+import { UploadVaultDocumentHandler } from './application/documents.handlers';
 
 @Module({
   imports: [CqrsModule],
@@ -33,6 +34,7 @@ import {
   providers: [
     WorkplaceRepository,
     GetVaultDocumentsHandler,
+    UploadVaultDocumentHandler,
     GetTrainingCoursesHandler,
     CreateCourseHandler,
     UpdateCourseHandler,

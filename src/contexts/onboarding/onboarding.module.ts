@@ -12,7 +12,9 @@ import { AddConsentHandler } from './application/commands/add-consent.command';
 import { FinalizeSubmissionHandler } from './application/commands/finalize-submission.command';
 import { SetChecklistHandler } from './application/commands/set-checklist.command';
 import { SetTaskStatusHandler } from './application/commands/set-task-status.command';
+import { DeleteTaskHandler } from './application/commands/delete-task.command';
 import { VerifyDocumentHandler } from './application/commands/verify-document.command';
+import { RejectDocumentHandler } from './application/commands/reject-document.command';
 import { TogglePolicyHandler } from './application/commands/toggle-policy.command';
 import { ActivateHandler } from './application/commands/activate.command';
 import { SubmitProfileHandler } from './application/commands/submit-profile.command';
@@ -28,7 +30,8 @@ import { GetCaseDocumentFileHandler } from './application/queries/get-case-docum
     ListCasesHandler, GetPipelineHandler, GetCaseByTokenHandler,
     CreateCaseHandler, MarkFormHandler, SubmitProfileHandler, UploadCaseDocumentHandler,
     GetCaseDocumentFileHandler, AddConsentHandler, FinalizeSubmissionHandler,
-    SetChecklistHandler, SetTaskStatusHandler, SetTaskAssigneeHandler, VerifyDocumentHandler, TogglePolicyHandler, ActivateHandler,
+    SetChecklistHandler, SetTaskStatusHandler, DeleteTaskHandler, SetTaskAssigneeHandler,
+    VerifyDocumentHandler, RejectDocumentHandler, TogglePolicyHandler, ActivateHandler,
   ],
 })
 export class OnboardingModule {}

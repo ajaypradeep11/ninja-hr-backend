@@ -45,4 +45,10 @@ describe('canActivate', () => {
     });
     expect(canActivate(c)).toBe(false);
   });
+  it('is false while a rejected document (Pending) awaits re-upload', () => {
+    const c = baseCase({
+      documents: [{ id: 'd', name: 'x', type: 't', folder: 'f', status: 'Pending', hasFile: true }],
+    });
+    expect(canActivate(c)).toBe(false);
+  });
 });

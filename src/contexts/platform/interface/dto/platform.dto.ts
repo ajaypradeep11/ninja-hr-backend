@@ -16,11 +16,30 @@ export class IntegrationsDto {
   @ApiProperty() @IsBoolean() quickbooks!: boolean;
 }
 
+const REVIEW_CADENCES = ['Annual', 'Bi-Annual', 'Quarterly'];
+
 export class SaveSettingsDto {
   @ApiProperty() @IsString() companyName!: string;
   @ApiProperty({ type: [String], enum: PROVINCES }) @IsArray() @IsIn(PROVINCES, { each: true }) provinces!: string[];
   @ApiProperty({ type: IntegrationsDto }) @IsObject() @ValidateNested() @Type(() => IntegrationsDto) integrations!: IntegrationsDto;
   @ApiProperty() @IsBoolean() recognitionPublic!: boolean;
+
+  /** Recurring review cadence (Cadence Configuration). Optional so existing
+   *  callers that omit it keep the previously saved value. */
+  @ApiProperty({ required: false, enum: REVIEW_CADENCES })
+  @IsOptional()
+  @IsIn(REVIEW_CADENCES)
+  reviewCadence?: 'Annual' | 'Bi-Annual' | 'Quarterly';
+
+  /** Admin-managed department options (onboarding preboard form). Optional so
+   *  existing callers that omit it keep the previously saved list. */
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @MaxLength(60, { each: true })
+  departments?: string[];
 }
 
 export class CreateAgentRunDto {

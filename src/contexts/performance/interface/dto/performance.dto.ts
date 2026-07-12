@@ -1,6 +1,6 @@
 // src/contexts/performance/interface/dto/performance.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class IssuePipDto {
   @ApiProperty() @IsString() employee!: string;
@@ -13,6 +13,12 @@ export class IssuePipDto {
 export class GoalProgressDto {
   @ApiProperty() @IsInt() @Min(0) @Max(100) progress!: number;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(1000) note?: string;
+}
+
+/** Goal re-weighting request, guarded by the 15% constructive-dismissal rule. */
+export class GoalWeightChangeDto {
+  @ApiProperty() @IsNumber() @Min(0) @Max(100) previousWeight!: number;
+  @ApiProperty() @IsNumber() @Min(0) @Max(100) proposedWeight!: number;
 }
 
 export class TalkingPointDto {

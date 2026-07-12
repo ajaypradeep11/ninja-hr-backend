@@ -20,7 +20,37 @@ export class GetGrowthHandler implements IQueryHandler<GetGrowthQuery> {
   }
 }
 
+export class ListAllGoalsQuery {}
+
+@QueryHandler(ListAllGoalsQuery)
+export class ListAllGoalsHandler implements IQueryHandler<ListAllGoalsQuery> {
+  constructor(private readonly repo: GrowthRepository) {}
+  execute() {
+    return this.repo.listAllGoals();
+  }
+}
+
 /* ------------------------------ Commands ----------------------------- */
+
+/** Guarded goal re-weighting (15% constructive-dismissal rule). */
+export class RequestGoalWeightChangeCommand {
+  constructor(
+    public readonly goalId: string,
+    public readonly previousWeight: number,
+    public readonly proposedWeight: number,
+    public readonly actor: ActorContext,
+  ) {}
+}
+
+@CommandHandler(RequestGoalWeightChangeCommand)
+export class RequestGoalWeightChangeHandler
+  implements ICommandHandler<RequestGoalWeightChangeCommand>
+{
+  constructor(private readonly repo: GrowthRepository) {}
+  execute(c: RequestGoalWeightChangeCommand) {
+    return this.repo.requestWeightChange(c.goalId, c.previousWeight, c.proposedWeight, c.actor);
+  }
+}
 
 export class UpdateGoalProgressCommand {
   constructor(

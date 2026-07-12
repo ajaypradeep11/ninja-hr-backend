@@ -8,13 +8,16 @@ import { GetPerformanceReviewsHandler } from './application/queries/get-performa
 import { GetPipsHandler } from './application/queries/get-pips.query';
 import { AdvanceReviewStateHandler } from './application/commands/advance-review-state.command';
 import { IssuePipHandler } from './application/commands/issue-pip.command';
+import { RunProbationSweepHandler } from './application/commands/run-probation-sweep.command';
 import {
   AddActionItemHandler,
   AddTalkingPointHandler,
   GetGrowthHandler,
   GiveKudosHandler,
+  ListAllGoalsHandler,
   RemoveTalkingPointHandler,
   RequestFeedbackHandler,
+  RequestGoalWeightChangeHandler,
   RespondFeedbackHandler,
   ToggleActionItemHandler,
   UpdateGoalProgressHandler,
@@ -30,7 +33,10 @@ import {
     GetPipsHandler,
     AdvanceReviewStateHandler,
     IssuePipHandler,
+    RunProbationSweepHandler,
     GetGrowthHandler,
+    ListAllGoalsHandler,
+    RequestGoalWeightChangeHandler,
     UpdateGoalProgressHandler,
     AddTalkingPointHandler,
     RemoveTalkingPointHandler,

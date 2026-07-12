@@ -7,6 +7,7 @@ import { GetOffboardingTasksHandler } from './application/queries/get-offboardin
 import { SetOffboardingTaskStatusHandler } from './application/commands/set-offboarding-task-status.command';
 import { SetOffboardingAssigneeHandler } from './application/commands/set-offboarding-assignee.command';
 import { FinalizeTerminationHandler } from './application/commands/finalize-termination.command';
+import { SaveOffboardingHandler } from './application/commands/save-offboarding.command';
 
 @Module({
   imports: [CqrsModule],
@@ -17,6 +18,7 @@ import { FinalizeTerminationHandler } from './application/commands/finalize-term
     SetOffboardingTaskStatusHandler,
     SetOffboardingAssigneeHandler,
     FinalizeTerminationHandler,
+    SaveOffboardingHandler,
   ],
 })
 export class OffboardingModule {}

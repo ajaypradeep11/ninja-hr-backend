@@ -25,6 +25,8 @@ export class SetOffboardingAssigneeDto {
   assignee?: string | null;
 }
 
+const TERMINATION_TYPES = ['Voluntary', 'Involuntary'] as const;
+
 export class FinalizeTerminationDto {
   @ApiProperty()
   @IsNotEmpty()
@@ -36,4 +38,52 @@ export class FinalizeTerminationDto {
   @IsOptional()
   @IsBoolean()
   override?: boolean;
+
+  /** Explicit admin override of the statutory-leave termination lock. */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  statutoryOverride?: boolean;
+
+  /** Human Rights Code certification acknowledgement — required with statutoryOverride. */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  hrCertified?: boolean;
+
+  @ApiProperty({ required: false, enum: TERMINATION_TYPES })
+  @IsOptional()
+  @IsIn(TERMINATION_TYPES as unknown as string[])
+  terminationType?: 'Voluntary' | 'Involuntary';
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  reason?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  rehireEligible?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
+export class SaveOffboardingDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(120)
+  employeeName!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  template?: string;
 }

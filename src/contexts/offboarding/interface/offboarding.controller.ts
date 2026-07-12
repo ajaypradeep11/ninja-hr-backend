@@ -7,10 +7,12 @@ import { GetOffboardingTasksQuery } from '../application/queries/get-offboarding
 import { SetOffboardingTaskStatusCommand } from '../application/commands/set-offboarding-task-status.command';
 import { SetOffboardingAssigneeCommand } from '../application/commands/set-offboarding-assignee.command';
 import { FinalizeTerminationCommand } from '../application/commands/finalize-termination.command';
+import { SaveOffboardingCommand } from '../application/commands/save-offboarding.command';
 import {
   SetTaskStatusDto,
   SetOffboardingAssigneeDto,
   FinalizeTerminationDto,
+  SaveOffboardingDto,
 } from './dto/offboarding.dto';
 
 @ApiTags('offboarding')
@@ -43,9 +45,27 @@ export class OffboardingController {
     );
   }
 
+  /** Persist an initiated offboarding case (employee → Offboarding status). */
+  @Post('save')
+  @HttpCode(200)
+  saveOffboarding(@Body() body: SaveOffboardingDto) {
+    return this.commands.execute(new SaveOffboardingCommand(body.employeeName, body.template));
+  }
+
   @Post('terminate')
   @HttpCode(200)
   finalizeTermination(@Body() body: FinalizeTerminationDto) {
-    return this.commands.execute(new FinalizeTerminationCommand(body.employeeName, body.override ?? false));
+    return this.commands.execute(
+      new FinalizeTerminationCommand({
+        employeeName: body.employeeName,
+        override: body.override ?? false,
+        statutoryOverride: body.statutoryOverride ?? false,
+        hrCertified: body.hrCertified ?? false,
+        terminationType: body.terminationType,
+        reason: body.reason,
+        rehireEligible: body.rehireEligible,
+        notes: body.notes,
+      }),
+    );
   }
 }

@@ -8,7 +8,7 @@ import type {
   CalcRule,
   CalcRuleInput,
 } from '../domain/platform.types';
-import { DEFAULT_SETTINGS } from '../domain/platform.types';
+import { DEFAULT_DEPARTMENTS, DEFAULT_SETTINGS } from '../domain/platform.types';
 import {
   agentStatusToDb,
   calcCategoryToDb,
@@ -35,11 +35,22 @@ export class PlatformRepository {
     // stamps companyId on create). Avoids upsert, whose unique `where` can't be
     // expressed from ALS context alone.
     const existing = await this.prisma.companySettings.findFirst({});
+    // reviewCadence + departments live inside the integrations JSON column (no
+    // dedicated columns). Callers that omit them (e.g. the Settings page) must
+    // not wipe values previously saved from the Performance/Onboarding pages.
+    const reviewCadence =
+      settings.reviewCadence ??
+      (existing ? settingsRowToDto(existing).reviewCadence : undefined) ??
+      'Annual';
+    const departments =
+      settings.departments ??
+      (existing ? settingsRowToDto(existing).departments : undefined) ??
+      DEFAULT_DEPARTMENTS;
     const data = {
       companyName: settings.companyName,
       provinces: settings.provinces,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      integrations: settings.integrations as any,
+      integrations: { ...settings.integrations, reviewCadence, departments } as any,
       recognitionPublic: settings.recognitionPublic,
     };
     if (existing) {

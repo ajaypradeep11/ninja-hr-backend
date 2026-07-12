@@ -1,4 +1,4 @@
-import { NotFoundException, Injectable } from '@nestjs/common';
+import { BadRequestException, NotFoundException, Injectable } from '@nestjs/common';
 import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type {
   Employee,
@@ -59,9 +59,26 @@ export class PeopleRepository {
 
   async updateEmployee(id: string, input: UpdateEmployeeInput): Promise<EmployeeDetail> {
     const has = <K extends keyof UpdateEmployeeInput>(k: K) => input[k] !== undefined;
+    // Sanity check: an employee cannot start work before they were born. Compare
+    // against the stored dates when only one side of the pair is being changed.
+    if (has('hireDate') || has('birthDate')) {
+      const current = await this.prisma.employee.findUnique({
+        where: { id },
+        select: { hireDate: true, birthDate: true },
+      });
+      if (!current) throw new NotFoundException(`Employee ${id} not found`);
+      const hire = input.hireDate ?? current.hireDate.toISOString().slice(0, 10);
+      const birth = input.birthDate ?? current.birthDate.toISOString().slice(0, 10);
+      if (hire < birth) {
+        throw new BadRequestException('Start date cannot be before date of birth');
+      }
+    }
     await this.prisma.employee.update({
       where: { id },
       data: {
+        ...(has('name') && input.name ? { name: input.name } : {}),
+        ...(has('hireDate') ? { hireDate: new Date(input.hireDate!) } : {}),
+        ...(has('birthDate') ? { birthDate: new Date(input.birthDate!) } : {}),
         ...(has('title') ? { title: input.title } : {}),
         ...(has('department') ? { department: input.department } : {}),
         ...(has('manager') ? { manager: input.manager || null } : {}),

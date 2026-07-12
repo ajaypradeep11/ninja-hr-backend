@@ -71,22 +71,38 @@ export class IdentityController {
   @Post('company-signup')
   async companySignup(@Body() body: CompanySignupDto) {
     const email = body.workEmail.trim().toLowerCase();
-    // Never adopt an already-existing Firebase identity: provisionUser is
-    // create-or-GET and setPassword would overwrite that account's password,
-    // so signing up with a victim's email could hijack their Firebase login.
-    // This also enforces one-email-one-company.
-    if (await this.firebase.findUserByEmail(email)) {
-      throw new ConflictException('An account already exists for this email.');
+    // Never adopt a Firebase identity that is LINKED to a workspace: setPassword
+    // would overwrite that account's password, so signing up with a victim's
+    // email could hijack their login. An UNLINKED Firebase account (no User row
+    // anywhere — the residue of a signup that failed mid-way) is safe to adopt:
+    // it grants nothing, and refusing it would permanently burn the email.
+    const existingUid = await this.firebase.findUserByEmail(email);
+    if (existingUid) {
+      const linked = await this.prisma.user.findFirst({ where: { firebaseUid: existingUid } });
+      if (linked) throw new ConflictException('An account already exists for this email.');
     }
 
     const slug = await this.uniqueCompanySlug(body.companyName.trim());
 
-    const uid = await this.firebase.provisionUser(email);
+    const uid = existingUid ?? (await this.firebase.provisionUser(email));
     if (!uid) {
       throw new ConflictException('Firebase Auth is not enabled for signup.');
     }
-    await this.firebase.setPassword(uid, body.password);
 
+    try {
+      await this.firebase.setPassword(uid, body.password);
+      return await this.finishCompanySignup(body, email, slug, uid);
+    } catch (err) {
+      // Compensate: a half-provisioned Firebase account with no DB rows would
+      // make every retry fail with "account already exists". Only delete what
+      // THIS call created — never a pre-existing account.
+      if (!existingUid) await this.firebase.deleteUser(uid).catch(() => undefined);
+      throw err;
+    }
+  }
+
+  /** DB half of signup: Company + settings + founding Employee/User, one transaction. */
+  private async finishCompanySignup(body: CompanySignupDto, email: string, slug: string, uid: string) {
     const result = await this.prisma.$transaction(async (tx) => {
       const company = await tx.company.create({
         data: { name: body.companyName.trim(), slug },

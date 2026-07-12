@@ -1,9 +1,12 @@
 // src/contexts/offboarding/application/commands/finalize-termination.command.ts
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { OffboardingRepository } from '../../infrastructure/offboarding.repository';
+import {
+  OffboardingRepository,
+  type FinalizeTerminationInput,
+} from '../../infrastructure/offboarding.repository';
 
 export class FinalizeTerminationCommand {
-  constructor(public readonly employeeName: string, public readonly override = false) {}
+  constructor(public readonly input: FinalizeTerminationInput) {}
 }
 
 @CommandHandler(FinalizeTerminationCommand)
@@ -12,7 +15,7 @@ export class FinalizeTerminationHandler
 {
   constructor(private readonly repo: OffboardingRepository) {}
 
-  execute({ employeeName, override }: FinalizeTerminationCommand): Promise<void> {
-    return this.repo.finalizeTermination(employeeName, override);
+  execute({ input }: FinalizeTerminationCommand): Promise<void> {
+    return this.repo.finalizeTermination(input);
   }
 }

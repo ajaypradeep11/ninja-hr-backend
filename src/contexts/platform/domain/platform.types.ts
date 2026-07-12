@@ -21,12 +21,31 @@ export interface Integrations {
   quickbooks: boolean;
 }
 
+/** Recurring performance review cadence (Cadence Configuration). */
+export type ReviewCadence = 'Annual' | 'Bi-Annual' | 'Quarterly';
+
+export const REVIEW_CADENCES: ReviewCadence[] = ['Annual', 'Bi-Annual', 'Quarterly'];
+
 export interface CompanySettings {
   companyName: string;
   provinces: string[];
   integrations: Integrations;
   recognitionPublic: boolean;
+  /** Stored inside the integrations JSON column — CompanySettings has no
+   *  dedicated column and schema changes are off the table. */
+  reviewCadence?: ReviewCadence;
+  /**
+   * Admin-managed department options for the onboarding preboard form.
+   * Optional on writes (older clients omit it — the saved list is preserved);
+   * always present on reads. Piggybacks on the integrations JSON column like
+   * reviewCadence, for the same schema-freeze reason.
+   */
+  departments?: string[];
 }
+
+export const DEFAULT_DEPARTMENTS = [
+  'Engineering', 'Design', 'Sales', 'Finance', 'Marketing', 'People', 'Operations',
+];
 
 export const DEFAULT_SETTINGS: CompanySettings = {
   companyName: 'NinjaHR',
@@ -40,6 +59,8 @@ export const DEFAULT_SETTINGS: CompanySettings = {
     quickbooks: true,
   },
   recognitionPublic: true,
+  reviewCadence: 'Annual',
+  departments: DEFAULT_DEPARTMENTS,
 };
 
 /* -------------------- Custom Calculator Engine --------------------- */

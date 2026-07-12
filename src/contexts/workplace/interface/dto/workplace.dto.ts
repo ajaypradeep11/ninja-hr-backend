@@ -1,9 +1,30 @@
 // src/contexts/workplace/interface/dto/workplace.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import type { CourseStatus, TrainingStatus } from '../../domain/workplace.types';
+import type { CourseStatus, DocAccess, TrainingStatus } from '../../domain/workplace.types';
 
 const MODERATION_STATUSES: CourseStatus[] = ['Published', 'Rejected'];
+
+/** The vault's canonical folder tree — uploads must route into one of these. */
+const VAULT_FOLDERS = [
+  '01_Recruitment',
+  '02_Onboarding_and_Tax',
+  '03_Compliance_and_Training',
+  '04_Performance_and_PIPs',
+  '05_Leaves_and_Medical',
+  '06_Offboarding',
+] as const;
+
+const DOC_ACCESS: DocAccess[] = ['Employee', 'Manager', 'HR Admin', 'Super Admin'];
+
+export class UploadVaultDocumentDto {
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(200) name!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(80) type!: string;
+  @ApiProperty({ enum: VAULT_FOLDERS }) @IsIn(VAULT_FOLDERS as unknown as string[]) folder!: string;
+  @ApiProperty({ enum: DOC_ACCESS }) @IsIn(DOC_ACCESS) access!: DocAccess;
+  /** Optional owner — links the document to an employee's personal vault. */
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) employeeName?: string;
+}
 
 export class CreateCourseDto {
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(160) title!: string;

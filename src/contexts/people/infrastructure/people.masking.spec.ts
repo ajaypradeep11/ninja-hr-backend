@@ -1,5 +1,5 @@
 // src/contexts/people/infrastructure/people.masking.spec.ts
-import { maskTail, rowToEmployeeDetail } from './people.mapper';
+import { maskTail, rowToEmployee, rowToEmployeeDetail } from './people.mapper';
 
 describe('maskTail', () => {
   it('masks all but the last 3 of a SIN', () => {
@@ -55,5 +55,37 @@ describe('rowToEmployeeDetail masking', () => {
     expect(d.hasSin).toBe(false);
     expect(d.sinMasked).toBeUndefined();
     expect(d.hasBanking).toBe(false);
+  });
+
+  it('keeps the masked SIN to the last 3 digits and the account to the last 4', () => {
+    const d = rowToEmployeeDetail({ ...base, sin: '046454286', bankAccount: '00123456789' });
+    expect(d.sinMasked).toMatch(/^•+286$/);
+    expect(d.bankAccountMasked).toMatch(/^•+6789$/);
+  });
+});
+
+describe('rowToEmployee (roster payload)', () => {
+  it('never carries SIN or banking fields, even when present on the row', () => {
+    const e = rowToEmployee({
+      id: 'e1',
+      name: 'Jane Doe',
+      title: 'Engineer',
+      department: 'Engineering',
+      province: 'ON',
+      email: 'jane@company.ca',
+      hireDate: new Date('2022-01-10T00:00:00Z'),
+      birthDate: new Date('1990-05-05T00:00:00Z'),
+      status: 'ACTIVE',
+      salary: 100000,
+      sin: '123456789',
+      bankAccount: '987654321',
+      bankInstitution: 'RBC',
+      bankTransit: '00012',
+    });
+    const json = JSON.stringify(e);
+    expect(json).not.toContain('123456789');
+    expect(json).not.toContain('987654321');
+    expect(json).not.toContain('sin');
+    expect(json).not.toContain('bank');
   });
 });

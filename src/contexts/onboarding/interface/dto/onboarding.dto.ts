@@ -116,6 +116,11 @@ export class UploadCaseDocumentDto {
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(11_500_000) dataBase64!: string;
 }
 
+/** Why the document was rejected — shown to the employee and audited. */
+export class RejectDocumentDto {
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(500) note!: string;
+}
+
 export class SetTaskAssigneeDto {
   @ApiProperty({ enum: OWNERS })
   @IsIn(OWNERS)

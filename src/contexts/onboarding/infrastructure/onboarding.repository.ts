@@ -38,17 +38,27 @@ export class OnboardingRepository {
   }
   async pipeline(): Promise<{ id: string; name: string; title: string; startsInDays: number; progress: number }[]> {
     const rows = await this.prisma.onboardingCase.findMany({
-      where: { status: { not: 'ACTIVE' } }, include: { checklist: true }, orderBy: { startDate: 'asc' },
+      where: { status: { not: 'ACTIVE' } },
+      include: { checklist: true, documents: { select: { status: true } } },
+      orderBy: { startDate: 'asc' },
     });
     return rows.map((c) => {
-      const forms = c.forms as Record<string, boolean>;
-      const formPct = Math.round((Object.values(forms).filter(Boolean).length / Object.values(forms).length) * 100);
-      const taskPct = c.checklist.length
-        ? Math.round((c.checklist.filter((t) => t.status === 'COMPLETED').length / c.checklist.length) * 100)
-        : 0;
+      const forms = Object.values(c.forms as Record<string, boolean>);
+      // Item-weighted completion: every form, checklist task and uploaded
+      // document counts once. Averaging sub-percentages let the 5 forms
+      // outweigh a dozen checklist tasks, so the dashboard bar didn't track
+      // real task/document completion.
+      const done =
+        forms.filter(Boolean).length +
+        c.checklist.filter((t) => t.status === 'COMPLETED').length +
+        c.documents.filter((d) => d.status === 'VERIFIED').length;
+      const total = forms.length + c.checklist.length + c.documents.length;
       const start = c.startDate.toISOString().slice(0, 10);
       const startsInDays = Math.max(0, Math.ceil((c.startDate.getTime() - Date.now()) / 86_400_000));
-      return { id: c.id, name: c.name, title: `${c.title} · starts ${start}`, startsInDays, progress: Math.round((formPct + taskPct) / 2) };
+      return {
+        id: c.id, name: c.name, title: `${c.title} · starts ${start}`, startsInDays,
+        progress: total ? Math.round((done / total) * 100) : 0,
+      };
     });
   }
 
@@ -190,6 +200,32 @@ export class OnboardingRepository {
       data: { status: taskStatusToDb[status] as never },
     });
     return res.count > 0;
+  }
+  /**
+   * Deletes ONE task, scoped to its case — returns false when the task does
+   * not belong to it. A single-row delete cannot race the way the
+   * delete-all + re-create of replaceChecklist can.
+   */
+  async deleteTask(caseId: string, taskId: string): Promise<boolean> {
+    const res = await this.prisma.checklistTask.deleteMany({ where: { id: taskId, caseId } });
+    return res.count > 0;
+  }
+  /**
+   * Marks a document rejected — parked as PENDING (no REJECTED status in the
+   * frozen schema) so it keeps blocking activation until re-uploaded. Returns
+   * the document name for the audit entry, or null when it isn't on this case.
+   */
+  async rejectDocument(caseId: string, docId: string): Promise<string | null> {
+    const row = await this.prisma.caseDocument.findFirst({
+      where: { id: docId, caseId },
+      select: { name: true },
+    });
+    if (!row) return null;
+    await this.prisma.caseDocument.updateMany({
+      where: { id: docId, caseId },
+      data: { status: 'PENDING' },
+    });
+    return row.name;
   }
   /** Scoped to the case — returns false when the document does not belong to it. */
   async verifyDocument(caseId: string, docId: string): Promise<boolean> {

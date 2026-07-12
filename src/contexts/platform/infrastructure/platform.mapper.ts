@@ -1,5 +1,6 @@
 // src/contexts/platform/infrastructure/platform.mapper.ts
 import type { AgentRun, AgentStatus, CalcCategory, CalcRule, CompanySettings, Integrations } from '../domain/platform.types';
+import { DEFAULT_DEPARTMENTS } from '../domain/platform.types';
 
 function invert<K extends string, V extends string>(m: Record<K, V>): Record<V, K> {
   return Object.fromEntries(Object.entries(m).map(([k, v]) => [v, k])) as Record<V, K>;
@@ -28,11 +29,19 @@ export function rowToAgentRun(row: any): AgentRun {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function settingsRowToDto(row: any): CompanySettings {
+  // reviewCadence + departments piggyback on the integrations JSON column (no
+  // dedicated columns exist) — lift them out so the API shape stays flat and typed.
+  const { reviewCadence, departments, ...integrations } = (row.integrations ?? {}) as Record<string, unknown>;
   return {
     companyName: row.companyName,
     provinces: row.provinces,
-    integrations: row.integrations as unknown as Integrations,
+    integrations: integrations as unknown as Integrations,
     recognitionPublic: row.recognitionPublic,
+    reviewCadence: (reviewCadence as CompanySettings['reviewCadence']) ?? 'Annual',
+    departments:
+      Array.isArray(departments) && departments.length
+        ? (departments as string[])
+        : DEFAULT_DEPARTMENTS,
   };
 }
 

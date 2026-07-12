@@ -2,6 +2,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsDateString,
   IsEmail,
   IsIn,
   IsInt,
@@ -27,6 +28,9 @@ const ELIGIBILITY: WorkEligibility[] = ['Citizen', 'Permanent Resident', 'Work P
 export class UpdateEmployeeDto {
   /** Employee privacy toggle — hide birthday from team views (self-editable). */
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() birthdayPrivate?: boolean;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @IsNotEmpty() @MaxLength(120) name?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsDateString() hireDate?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsDateString() birthDate?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) title?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(60) department?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) manager?: string;

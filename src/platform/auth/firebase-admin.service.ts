@@ -98,6 +98,12 @@ export class FirebaseAdminService {
     await this.auth().updateUser(uid, { password });
   }
 
+  /** Remove a Firebase user — compensating action when signup fails mid-way. */
+  async deleteUser(uid: string): Promise<void> {
+    if (!this.app) return;
+    await this.auth().deleteUser(uid);
+  }
+
   async createSessionCookie(idToken: string, expiresInMs: number): Promise<string> {
     return this.auth().createSessionCookie(idToken, { expiresIn: expiresInMs });
   }

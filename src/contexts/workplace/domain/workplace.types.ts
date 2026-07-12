@@ -11,6 +11,18 @@ export interface VaultDocument {
   access: DocAccess;
 }
 
+/** Manual vault upload (Documents module dropzone). Metadata only — the
+ *  VaultDocument row carries no file bytes; binaries live on preboarding
+ *  CaseDocuments, which stream through their own endpoint. */
+export interface UploadVaultDocumentInput {
+  name: string;
+  type: string;
+  folder: string;
+  access: DocAccess;
+  /** Optional owner — links the document to an employee's personal vault. */
+  employeeName?: string;
+}
+
 export type TrainingStatus = 'Assigned' | 'In-Progress' | 'Completed';
 
 export type CourseStatus = 'Draft' | 'Pending HR Approval' | 'Published' | 'Rejected';

@@ -25,7 +25,9 @@ export interface Gate {
 export function activationGates(c: OnboardingCase): Gate[] {
   const blockingTasks = c.checklist.filter((t) => t.blocking);
   const blockingDone = blockingTasks.filter((t) => t.status === 'Completed');
-  const unverified = c.documents.filter((d) => d.status === 'Needs Verification');
+  // 'Pending' is the rejected/awaiting-re-upload state — it must keep the
+  // gate closed just like a document HR hasn't looked at yet.
+  const unverified = c.documents.filter((d) => d.status !== 'Verified');
   const formsDone = formProgress(c.forms) === 100;
 
   // Policy attachment is no longer an activation condition — policy

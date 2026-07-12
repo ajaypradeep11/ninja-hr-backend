@@ -78,6 +78,9 @@ export interface EmployeeDetail extends Employee {
 /** HRIS fields an HR user may edit (raw sensitive values accepted here). */
 export interface UpdateEmployeeInput {
   birthdayPrivate?: boolean;
+  name?: string;
+  hireDate?: string;
+  birthDate?: string;
   title?: string;
   department?: string;
   manager?: string;

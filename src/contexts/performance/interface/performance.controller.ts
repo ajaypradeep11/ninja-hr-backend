@@ -8,13 +8,16 @@ import { GetPerformanceReviewsQuery } from '../application/queries/get-performan
 import { GetPipsQuery } from '../application/queries/get-pips.query';
 import { AdvanceReviewStateCommand } from '../application/commands/advance-review-state.command';
 import { IssuePipCommand } from '../application/commands/issue-pip.command';
+import { RunProbationSweepCommand } from '../application/commands/run-probation-sweep.command';
 import {
   AddActionItemCommand,
   AddTalkingPointCommand,
   GetGrowthQuery,
   GiveKudosCommand,
+  ListAllGoalsQuery,
   RemoveTalkingPointCommand,
   RequestFeedbackCommand,
+  RequestGoalWeightChangeCommand,
   RespondFeedbackCommand,
   ToggleActionItemCommand,
   UpdateGoalProgressCommand,
@@ -24,6 +27,7 @@ import {
   FeedbackRequestDto,
   FeedbackResponseDto,
   GoalProgressDto,
+  GoalWeightChangeDto,
   IssuePipDto,
   KudosDto,
   TalkingPointDto,
@@ -60,6 +64,14 @@ export class PerformanceController {
     return this.commands.execute(new AdvanceReviewStateCommand(id));
   }
 
+  /** Day-60 initialize / Day-80 escalate probationary automation — invoked
+   *  when HR opens the Performance dashboard (no cron infra exists). */
+  @Post('probation/sweep')
+  @Roles('HR_ADMIN')
+  runProbationSweep() {
+    return this.commands.execute(new RunProbationSweepCommand());
+  }
+
   @Post('pips')
   @Roles('HR_ADMIN')
   issuePip(@Body() body: IssuePipDto) {
@@ -79,6 +91,25 @@ export class PerformanceController {
   @Get('growth')
   getGrowth(@ActorCtx() actor: ActorContext) {
     return this.queries.execute(new GetGrowthQuery(actor));
+  }
+
+  /** Company-wide goal list for the admin weight-change guardrail flow. */
+  @Get('growth/goals')
+  @Roles('HR_ADMIN')
+  listAllGoals() {
+    return this.queries.execute(new ListAllGoalsQuery());
+  }
+
+  /** Re-weight a goal — blocked past the 15% constructive-dismissal rule. */
+  @Patch('growth/goals/:id/weight')
+  requestGoalWeightChange(
+    @Param('id') id: string,
+    @Body() body: GoalWeightChangeDto,
+    @ActorCtx() actor: ActorContext,
+  ) {
+    return this.commands.execute(
+      new RequestGoalWeightChangeCommand(id, body.previousWeight, body.proposedWeight, actor),
+    );
   }
 
   /** Log a progress update on one of the actor's goals (weekly cadence). */

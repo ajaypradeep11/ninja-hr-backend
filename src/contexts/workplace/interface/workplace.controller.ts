@@ -27,6 +27,7 @@ import {
   IssueLetterCommand,
   UpdateLetterTemplateCommand,
 } from '../application/letters.handlers';
+import { UploadVaultDocumentCommand } from '../application/documents.handlers';
 import {
   AssignTrainingDto,
   CreateCourseDto,
@@ -37,6 +38,7 @@ import {
   UpdateCourseDto,
   UpdateLetterTemplateDto,
   UpdatePeerCourseDto,
+  UploadVaultDocumentDto,
 } from './dto/workplace.dto';
 
 @ApiTags('workplace')
@@ -52,6 +54,14 @@ export class WorkplaceController {
   @Get('documents')
   getVaultDocuments(@ActorCtx() actor: ActorContext) {
     return this.queries.execute(new GetVaultDocumentsQuery(actor));
+  }
+
+  /** Manual vault upload (Documents dropzone). HR-only: employees receive
+   *  documents through platform workflows, never by writing to the vault. */
+  @Post('documents')
+  @Roles('HR_ADMIN')
+  uploadVaultDocument(@Body() body: UploadVaultDocumentDto) {
+    return this.commands.execute(new UploadVaultDocumentCommand(body));
   }
 
   /* ---------------------- Letter Lab (HR letters) -------------------- */

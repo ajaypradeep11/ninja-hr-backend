@@ -1,5 +1,5 @@
 // src/contexts/onboarding/interface/onboarding.controller.ts
-import { Body, Controller, Get, Ip, Param, Patch, Post, Put, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Ip, Param, Patch, Post, Put, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -14,7 +14,9 @@ import { AddConsentCommand } from '../application/commands/add-consent.command';
 import { FinalizeSubmissionCommand } from '../application/commands/finalize-submission.command';
 import { SetChecklistCommand } from '../application/commands/set-checklist.command';
 import { SetTaskStatusCommand } from '../application/commands/set-task-status.command';
+import { DeleteTaskCommand } from '../application/commands/delete-task.command';
 import { VerifyDocumentCommand } from '../application/commands/verify-document.command';
+import { RejectDocumentCommand } from '../application/commands/reject-document.command';
 import { TogglePolicyCommand } from '../application/commands/toggle-policy.command';
 import { ActivateCommand } from '../application/commands/activate.command';
 import { SubmitProfileCommand } from '../application/commands/submit-profile.command';
@@ -23,7 +25,7 @@ import { GetCaseDocumentFileQuery, type CaseDocumentFile } from '../application/
 import { SetTaskAssigneeCommand } from '../application/commands/set-task-assignee.command';
 import {
   NewCaseDto, NewHireProfileDto, PolicyDto, TaskStatusDto, ChecklistDto, UploadCaseDocumentDto,
-  SetTaskAssigneeDto,
+  SetTaskAssigneeDto, RejectDocumentDto,
 } from './dto/onboarding.dto';
 import type { FormFlags } from '../domain/onboarding.types';
 
@@ -153,10 +155,26 @@ export class OnboardingController {
     return this.commands.execute(new SetTaskStatusCommand(id, taskId, body.status));
   }
 
+  /** Deletes one checklist task — single-row delete so concurrent clicks
+   * can't duplicate the checklist the way a full replace could. */
+  @Delete('cases/:id/tasks/:taskId')
+  @Roles('HR_ADMIN')
+  deleteTask(@Param('id') id: string, @Param('taskId') taskId: string) {
+    return this.commands.execute(new DeleteTaskCommand(id, taskId));
+  }
+
   @Post('cases/:id/documents/:docId/verify')
   @Roles('HR_ADMIN')
   verifyDocument(@Param('id') id: string, @Param('docId') docId: string) {
     return this.commands.execute(new VerifyDocumentCommand(id, docId));
+  }
+
+  /** HR rejects a submitted document with a note — the employee portal shows
+   * it as rejected and the note is recorded in the audit trail. */
+  @Post('cases/:id/documents/:docId/reject')
+  @Roles('HR_ADMIN')
+  rejectDocument(@Param('id') id: string, @Param('docId') docId: string, @Body() body: RejectDocumentDto) {
+    return this.commands.execute(new RejectDocumentCommand(id, docId, body.note));
   }
 
   @Post('cases/:id/policies/toggle')

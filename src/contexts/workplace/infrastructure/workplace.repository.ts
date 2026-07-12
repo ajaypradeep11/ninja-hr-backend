@@ -13,8 +13,10 @@ import type {
   LetterTemplate,
   LetterTemplateInput,
   IssueLetterInput,
+  UploadVaultDocumentInput,
 } from '../domain/workplace.types';
 import {
+  docAccessToDb,
   rowToVaultDocument,
   rowToTrainingCourse,
   rowToTrainingAssignment,
@@ -46,6 +48,26 @@ export class WorkplaceRepository {
         };
     const rows = await this.prisma.vaultDocument.findMany({ where, orderBy: { uploaded: 'desc' } });
     return rows.map(rowToVaultDocument);
+  }
+
+  /** Manual vault upload (Documents dropzone). Metadata row only — see
+   *  UploadVaultDocumentInput for why no bytes are stored. */
+  async addVaultDocument(input: UploadVaultDocumentInput): Promise<VaultDocument> {
+    const emp = input.employeeName
+      ? await this.prisma.employee.findFirst({ where: { name: input.employeeName } })
+      : null;
+    if (input.employeeName && !emp) throw new NotFoundException('Employee not found');
+    const created = await this.prisma.vaultDocument.create({
+      data: {
+        name: input.name,
+        type: input.type,
+        folder: input.folder,
+        access: docAccessToDb[input.access] as never,
+        uploaded: new Date(),
+        ...(emp ? { employeeId: emp.id } : {}),
+      },
+    });
+    return rowToVaultDocument(created);
   }
 
   /* ---------------------- Letter Lab (HR letters) -------------------- */

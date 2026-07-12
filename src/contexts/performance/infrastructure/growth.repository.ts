@@ -1,6 +1,7 @@
 // src/contexts/performance/infrastructure/growth.repository.ts
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -17,7 +18,22 @@ import type {
   OneOnOneSync,
   PeerFeedback,
 } from '../domain/growth.types';
+import {
+  exceedsWeightGuardrail,
+  GOAL_WEIGHT_GUARDRAIL_PCT,
+  WEIGHT_GUARDRAIL_MARKER,
+  weightChangeDelta,
+} from '../domain/goal-weight-guardrail';
 import { rowToFeedback, rowToGoal, rowToKudos, rowToSync } from './growth.mapper';
+
+/** HR-facing goal summary used by the admin weight-change guardrail flow. */
+export interface GoalSummary {
+  id: string;
+  employee: string;
+  title: string;
+  status: 'Active' | 'Completed';
+  progress: number;
+}
 
 const GOAL_INCLUDE = {
   updates: { orderBy: { createdAt: 'desc' as const }, take: 10 },
@@ -81,6 +97,82 @@ export class GrowthRepository {
   }
 
   /* ------------------------------ Goals ------------------------------ */
+
+  /** Company-wide goal list for the admin performance surface (HR-gated at
+   *  the controller). */
+  async listAllGoals(): Promise<GoalSummary[]> {
+    const rows = await this.prisma.goal.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: { employee: { select: { name: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      employee: r.employee.name,
+      title: r.title,
+      status: r.status === 'COMPLETED' ? 'Completed' : 'Active',
+      progress: r.progress,
+    }));
+  }
+
+  /**
+   * Constructive-dismissal guardrail on goal weights: a change of more than
+   * 15 percentage points on an active (signed) goal must NOT save directly —
+   * it is audit-logged and rejected with a 409 so the caller routes it to the
+   * Pending Approvals (mutual consent) flow. Changes within the threshold are
+   * audit-logged and accepted.
+   *
+   * NOTE: the Goal model has no weight column, so the applied/blocked change
+   * is recorded on the goal's update trail (documented gap).
+   */
+  async requestWeightChange(
+    goalId: string,
+    previousWeight: number,
+    proposedWeight: number,
+    actor: ActorContext,
+  ): Promise<{ applied: true }> {
+    const goal = await this.prisma.goal.findUnique({
+      where: { id: goalId },
+      include: { employee: { select: { name: true, department: true } } },
+    });
+    if (!goal) throw new NotFoundException('Goal not found');
+
+    // HR may re-weight anything; a manager only their own department's goals.
+    const isDeptManager =
+      actor.role === 'MANAGER' && !!actor.department && actor.department === goal.employee.department;
+    if (actor.role !== 'HR_ADMIN' && !isDeptManager) {
+      throw new ForbiddenException("Only HR or the employee's manager can change goal weights");
+    }
+    if (goal.status === 'COMPLETED') {
+      throw new BadRequestException('Completed goals cannot be re-weighted');
+    }
+
+    const delta = weightChangeDelta(previousWeight, proposedWeight);
+    if (exceedsWeightGuardrail(previousWeight, proposedWeight)) {
+      await this.prisma.goalUpdate.create({
+        data: {
+          goalId,
+          progress: goal.progress,
+          note:
+            `Constructive-dismissal guardrail: BLOCKED weight change ${previousWeight}% → ${proposedWeight}% ` +
+            `(Δ${delta}pp > ${GOAL_WEIGHT_GUARDRAIL_PCT}pp) on "${goal.title}" — routed to HR Pending Approvals for mutual consent.`,
+        },
+      });
+      throw new ConflictException(
+        `${WEIGHT_GUARDRAIL_MARKER}: Changing this goal's weight by ${delta} percentage points exceeds the ` +
+          `${GOAL_WEIGHT_GUARDRAIL_PCT}% constructive-dismissal guardrail. The change was not saved — it has been ` +
+          `routed to Pending Approvals and requires mutual signed consent.`,
+      );
+    }
+
+    await this.prisma.goalUpdate.create({
+      data: {
+        goalId,
+        progress: goal.progress,
+        note: `Goal weight adjusted ${previousWeight}% → ${proposedWeight}% (within the ${GOAL_WEIGHT_GUARDRAIL_PCT}% guardrail).`,
+      },
+    });
+    return { applied: true };
+  }
 
   /** Owner logs a progress update (weekly cadence); HR may adjust anyone's. */
   async updateGoalProgress(
