@@ -1,6 +1,6 @@
 // src/contexts/platform/infrastructure/platform.mapper.ts
 import type { AgentRun, AgentStatus, CalcCategory, CalcRule, CompanySettings, Integrations } from '../domain/platform.types';
-import { DEFAULT_DEPARTMENTS } from '../domain/platform.types';
+import { DEFAULT_DEPARTMENTS, DEFAULT_JOB_TITLES } from '../domain/platform.types';
 
 function invert<K extends string, V extends string>(m: Record<K, V>): Record<V, K> {
   return Object.fromEntries(Object.entries(m).map(([k, v]) => [v, k])) as Record<V, K>;
@@ -31,7 +31,7 @@ export function rowToAgentRun(row: any): AgentRun {
 export function settingsRowToDto(row: any): CompanySettings {
   // reviewCadence + departments piggyback on the integrations JSON column (no
   // dedicated columns exist) — lift them out so the API shape stays flat and typed.
-  const { reviewCadence, departments, ...integrations } = (row.integrations ?? {}) as Record<string, unknown>;
+  const { reviewCadence, departments, jobTitles, ...integrations } = (row.integrations ?? {}) as Record<string, unknown>;
   return {
     companyName: row.companyName,
     provinces: row.provinces,
@@ -42,6 +42,8 @@ export function settingsRowToDto(row: any): CompanySettings {
       Array.isArray(departments) && departments.length
         ? (departments as string[])
         : DEFAULT_DEPARTMENTS,
+    jobTitles:
+      Array.isArray(jobTitles) && jobTitles.length ? (jobTitles as string[]) : DEFAULT_JOB_TITLES,
   };
 }
 

@@ -15,3 +15,16 @@ export class UploadVaultDocumentHandler implements ICommandHandler<UploadVaultDo
     return this.repo.addVaultDocument(c.input);
   }
 }
+
+export class DeleteVaultDocumentCommand {
+  constructor(public readonly id: string) {}
+}
+
+@CommandHandler(DeleteVaultDocumentCommand)
+export class DeleteVaultDocumentHandler implements ICommandHandler<DeleteVaultDocumentCommand> {
+  constructor(private readonly repo: WorkplaceRepository) {}
+  async execute({ id }: DeleteVaultDocumentCommand): Promise<{ ok: true }> {
+    await this.repo.removeVaultDocument(id);
+    return { ok: true };
+  }
+}

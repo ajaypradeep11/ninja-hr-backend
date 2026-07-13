@@ -50,6 +50,12 @@ export class WorkplaceRepository {
     return rows.map(rowToVaultDocument);
   }
 
+  /** Removes a vault document (HR curation of an employee's file cabinet). */
+  async removeVaultDocument(id: string): Promise<void> {
+    const res = await this.prisma.vaultDocument.deleteMany({ where: { id } });
+    if (res.count === 0) throw new NotFoundException('Document not found');
+  }
+
   /** Manual vault upload (Documents dropzone). Metadata row only — see
    *  UploadVaultDocumentInput for why no bytes are stored. */
   async addVaultDocument(input: UploadVaultDocumentInput): Promise<VaultDocument> {

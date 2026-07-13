@@ -27,7 +27,7 @@ import {
   IssueLetterCommand,
   UpdateLetterTemplateCommand,
 } from '../application/letters.handlers';
-import { UploadVaultDocumentCommand } from '../application/documents.handlers';
+import { DeleteVaultDocumentCommand, UploadVaultDocumentCommand } from '../application/documents.handlers';
 import {
   AssignTrainingDto,
   CreateCourseDto,
@@ -62,6 +62,13 @@ export class WorkplaceController {
   @Roles('HR_ADMIN')
   uploadVaultDocument(@Body() body: UploadVaultDocumentDto) {
     return this.commands.execute(new UploadVaultDocumentCommand(body));
+  }
+
+  /** Remove a vault document — HR curates employee file cabinets. */
+  @Delete('documents/:id')
+  @Roles('HR_ADMIN')
+  deleteVaultDocument(@Param('id') id: string) {
+    return this.commands.execute(new DeleteVaultDocumentCommand(id));
   }
 
   /* ---------------------- Letter Lab (HR letters) -------------------- */

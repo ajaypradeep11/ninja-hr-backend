@@ -40,6 +40,11 @@ export class SaveSettingsDto {
   @IsNotEmpty({ each: true })
   @MaxLength(60, { each: true })
   departments?: string[];
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsString({ each: true })
+  jobTitles?: string[];
 }
 
 export class CreateAgentRunDto {

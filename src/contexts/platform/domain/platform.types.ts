@@ -41,10 +41,17 @@ export interface CompanySettings {
    * reviewCadence, for the same schema-freeze reason.
    */
   departments?: string[];
+  /** Admin-managed job-title options — same piggyback + semantics as departments. */
+  jobTitles?: string[];
 }
 
 export const DEFAULT_DEPARTMENTS = [
   'Engineering', 'Design', 'Sales', 'Finance', 'Marketing', 'People', 'Operations',
+];
+
+export const DEFAULT_JOB_TITLES = [
+  'Software Engineer', 'Product Designer', 'Account Executive', 'HR Generalist',
+  'Financial Analyst', 'Marketing Specialist', 'Operations Manager',
 ];
 
 export const DEFAULT_SETTINGS: CompanySettings = {
@@ -61,6 +68,7 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   recognitionPublic: true,
   reviewCadence: 'Annual',
   departments: DEFAULT_DEPARTMENTS,
+  jobTitles: DEFAULT_JOB_TITLES,
 };
 
 /* -------------------- Custom Calculator Engine --------------------- */

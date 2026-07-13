@@ -42,6 +42,10 @@ export class PlatformRepository {
       settings.reviewCadence ??
       (existing ? settingsRowToDto(existing).reviewCadence : undefined) ??
       'Annual';
+    const jobTitles =
+      settings.jobTitles ??
+      (existing ? settingsRowToDto(existing).jobTitles : undefined) ??
+      undefined;
     const departments =
       settings.departments ??
       (existing ? settingsRowToDto(existing).departments : undefined) ??
@@ -50,7 +54,7 @@ export class PlatformRepository {
       companyName: settings.companyName,
       provinces: settings.provinces,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      integrations: { ...settings.integrations, reviewCadence, departments } as any,
+      integrations: { ...settings.integrations, reviewCadence, departments, jobTitles } as any,
       recognitionPublic: settings.recognitionPublic,
     };
     if (existing) {
