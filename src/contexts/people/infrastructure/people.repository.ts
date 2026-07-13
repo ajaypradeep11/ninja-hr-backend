@@ -1,6 +1,7 @@
-import { BadRequestException, NotFoundException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, Injectable } from '@nestjs/common';
 import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
 import type {
+  CreateEmployeeInput,
   Employee,
   EmployeeDetail,
   EmergencyContactInput,
@@ -55,6 +56,66 @@ export class PeopleRepository {
     });
     if (!row) throw new NotFoundException(`Employee ${id} not found`);
     return rowToEmployeeDetail(row);
+  }
+
+  /**
+   * Manual profile creation (Add Employee → "Add manually") — for people hired
+   * or pre-boarded outside the system. Creates an ACTIVE Employee with the
+   * next EMP-NNNN number plus an EMPLOYEE login (Firebase links by verified
+   * email on first sign-in), mirroring what onboarding activation provisions.
+   */
+  async createEmployee(input: CreateEmployeeInput): Promise<EmployeeDetail> {
+    const email = input.email.trim().toLowerCase();
+    const dup = await this.prisma.employee.findFirst({ where: { email } });
+    if (dup) throw new ConflictException(`An employee with ${email} already exists.`);
+    if (input.birthDate && input.hireDate < input.birthDate) {
+      throw new BadRequestException('Start date cannot be before the date of birth.');
+    }
+    let row;
+    try {
+      row = await this.prisma.employee.create({
+        data: {
+          name: input.name.trim(),
+          title: input.title.trim(),
+          department: input.department.trim(),
+          province: input.province as never,
+          email,
+          hireDate: new Date(input.hireDate),
+          birthDate: input.birthDate ? new Date(input.birthDate) : new Date('1970-01-01T00:00:00.000Z'),
+          salary: input.salary ?? 0,
+          status: 'ACTIVE',
+          employeeNumber: await this.nextEmployeeNumber(),
+          employmentType: input.employmentType
+            ? (employmentTypeToDb[input.employmentType] as never)
+            : undefined,
+          workLocation: input.workLocation?.trim() || null,
+          preferredName: input.preferredName?.trim() || null,
+          phone: input.phone?.trim() || null,
+          manager: input.manager?.trim() || null,
+        },
+      });
+    } catch (e) {
+      // Global unique(email) — the address may belong to another workspace.
+      if ((e as { code?: string }).code === 'P2002') {
+        throw new ConflictException(`An account already exists for ${email}.`);
+      }
+      throw e;
+    }
+    await this.prisma.user.create({ data: { employeeId: row.id, role: 'EMPLOYEE' } });
+    return this.getEmployeeDetail(row.id);
+  }
+
+  /** Next EMP-NNNN directory number (max existing + 1). */
+  private async nextEmployeeNumber(): Promise<string> {
+    const rows = await this.prisma.employee.findMany({
+      where: { employeeNumber: { startsWith: 'EMP-' } },
+      select: { employeeNumber: true },
+    });
+    const max = rows
+      .map((r) => Number(r.employeeNumber?.slice(4)))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => Math.max(a, b), 0);
+    return `EMP-${String(max + 1).padStart(4, '0')}`;
   }
 
   async updateEmployee(id: string, input: UpdateEmployeeInput): Promise<EmployeeDetail> {

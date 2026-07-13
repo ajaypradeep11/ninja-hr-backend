@@ -25,6 +25,22 @@ const EMPLOYMENT: EmploymentType[] = ['Full-time', 'Part-time', 'Contractor'];
 const PAY: PayFrequency[] = ['Weekly', 'Bi-weekly', 'Semi-monthly', 'Monthly'];
 const ELIGIBILITY: WorkEligibility[] = ['Citizen', 'Permanent Resident', 'Work Permit', 'Study Permit'];
 
+export class CreateEmployeeDto {
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(120) name!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(120) title!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(80) department!: string;
+  @ApiProperty({ enum: PROVINCES }) @IsIn(PROVINCES) province!: string;
+  @ApiProperty() @IsEmail() email!: string;
+  @ApiProperty({ description: 'ISO date (yyyy-mm-dd)' }) @IsDateString() hireDate!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsDateString() birthDate?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) salary?: number;
+  @ApiProperty({ required: false, enum: EMPLOYMENT }) @IsOptional() @IsIn(EMPLOYMENT) employmentType?: EmploymentType;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) workLocation?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(80) preferredName?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(40) phone?: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) manager?: string;
+}
+
 export class UpdateEmployeeDto {
   /** Employee privacy toggle — hide birthday from team views (self-editable). */
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() birthdayPrivate?: boolean;

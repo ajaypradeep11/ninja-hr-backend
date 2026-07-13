@@ -75,6 +75,23 @@ export interface EmployeeDetail extends Employee {
   documents: EmployeeDocumentRef[];
 }
 
+/** Manual HR-created profile — for hires made outside the recruiting/onboarding flows. */
+export interface CreateEmployeeInput {
+  name: string;
+  title: string;
+  department: string;
+  province: ProvinceCode;
+  email: string;
+  hireDate: string;
+  birthDate?: string;
+  salary?: number;
+  employmentType?: EmploymentType;
+  workLocation?: string;
+  preferredName?: string;
+  phone?: string;
+  manager?: string;
+}
+
 /** HRIS fields an HR user may edit (raw sensitive values accepted here). */
 export interface UpdateEmployeeInput {
   birthdayPrivate?: boolean;

@@ -78,3 +78,57 @@ describe('PeopleRepository.updateEmployee date sanity', () => {
     expect(data).not.toHaveProperty('birthDate');
   });
 });
+
+describe('PeopleRepository.createEmployee (manual add)', () => {
+  const input = {
+    name: 'New Hire',
+    title: 'Analyst',
+    department: 'Finance',
+    province: 'ON' as const,
+    email: 'New.Hire@Example.com',
+    hireDate: '2026-08-01',
+  };
+
+  function makeCreatePrisma(overrides: Record<string, unknown> = {}) {
+    return {
+      employee: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([{ employeeNumber: 'EMP-0013' }]),
+        create: jest.fn().mockResolvedValue({ ...ROW, id: 'e-new' }),
+        findUnique: jest.fn().mockResolvedValue({ ...ROW, id: 'e-new', emergencyContacts: [], documents: [] }),
+        ...((overrides.employee as object) ?? {}),
+      },
+      user: { create: jest.fn().mockResolvedValue({ id: 'u-new' }) },
+    };
+  }
+
+  it('creates an ACTIVE employee with the next EMP number and an EMPLOYEE login', async () => {
+    const prisma = makeCreatePrisma();
+    const repo = new PeopleRepository(prisma as unknown as TenantPrismaService);
+    await repo.createEmployee(input);
+    const data = prisma.employee.create.mock.calls[0][0].data;
+    expect(data.email).toBe('new.hire@example.com'); // normalized
+    expect(data.status).toBe('ACTIVE');
+    expect(data.employeeNumber).toBe('EMP-0014'); // max existing + 1
+    expect(prisma.user.create).toHaveBeenCalledWith({
+      data: { employeeId: 'e-new', role: 'EMPLOYEE' },
+    });
+  });
+
+  it('409s on a duplicate email without creating anything', async () => {
+    const prisma = makeCreatePrisma({ employee: { findFirst: jest.fn().mockResolvedValue(ROW) } });
+    const repo = new PeopleRepository(prisma as unknown as TenantPrismaService);
+    await expect(repo.createEmployee(input)).rejects.toThrow('already exists');
+    expect(prisma.employee.create).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a hire date before the birth date', async () => {
+    const prisma = makeCreatePrisma();
+    const repo = new PeopleRepository(prisma as unknown as TenantPrismaService);
+    await expect(
+      repo.createEmployee({ ...input, birthDate: '2027-01-01' }),
+    ).rejects.toThrow(BadRequestException);
+    expect(prisma.employee.create).not.toHaveBeenCalled();
+  });
+});

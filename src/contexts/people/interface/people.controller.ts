@@ -9,12 +9,13 @@ import { GetEmployeeByNameQuery } from '../application/queries/get-employee-by-n
 import { GetEmployeeDetailQuery } from '../application/queries/get-employee-detail.query';
 import { GetHeadcountQuery } from '../application/queries/get-headcount.query';
 import { GetSalaryBenchmarksQuery } from '../application/queries/get-salary-benchmarks.query';
+import { CreateEmployeeCommand } from '../application/commands/create-employee.command';
 import { UpdateEmployeeCommand } from '../application/commands/update-employee.command';
 import {
   AddEmergencyContactCommand,
   DeleteEmergencyContactCommand,
 } from '../application/commands/emergency-contact.commands';
-import { EmergencyContactDto, UpdateEmployeeDto } from './dto/people.dto';
+import { CreateEmployeeDto, EmergencyContactDto, UpdateEmployeeDto } from './dto/people.dto';
 
 /** Fields an employee may change on their OWN record (My Profile self-service).
  *  Everything else — compensation, SIN, banking, eligibility, employment — is HR-only. */
@@ -64,6 +65,14 @@ export class PeopleController {
   @Roles('HR_ADMIN')
   getSalaryBenchmarks() {
     return this.queries.execute(new GetSalaryBenchmarksQuery());
+  }
+
+  /** Manual profile creation — hires made outside recruiting/onboarding. */
+  @Post('employees')
+  @Roles('HR_ADMIN')
+  createEmployee(@Body() body: CreateEmployeeDto) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return this.commands.execute(new CreateEmployeeCommand(body as any));
   }
 
   /* --------------------- HRIS record (HR, or your own) -------------------- */

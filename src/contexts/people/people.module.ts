@@ -8,6 +8,7 @@ import { GetEmployeeByNameHandler } from './application/queries/get-employee-by-
 import { GetEmployeeDetailHandler } from './application/queries/get-employee-detail.query';
 import { GetHeadcountHandler } from './application/queries/get-headcount.query';
 import { GetSalaryBenchmarksHandler } from './application/queries/get-salary-benchmarks.query';
+import { CreateEmployeeHandler } from './application/commands/create-employee.command';
 import { UpdateEmployeeHandler } from './application/commands/update-employee.command';
 import {
   AddEmergencyContactHandler,
@@ -24,6 +25,7 @@ import {
     GetEmployeeDetailHandler,
     GetHeadcountHandler,
     GetSalaryBenchmarksHandler,
+    CreateEmployeeHandler,
     UpdateEmployeeHandler,
     AddEmergencyContactHandler,
     DeleteEmergencyContactHandler,
