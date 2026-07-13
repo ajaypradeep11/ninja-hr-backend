@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
+import { TenantContext } from 'src/platform/database/tenant-context';
 import type { ActorContext } from 'src/platform/auth/actor-context';
 import {
   STAGE_TO_PORTAL,
@@ -135,6 +136,7 @@ export class RecruitmentRepository {
   constructor(
     private readonly prisma: TenantPrismaService,
     private readonly resumeParser: ResumeParserService,
+    private readonly tenant: TenantContext,
   ) {}
 
   /* ------------------------------ Audit ------------------------------ */
@@ -276,9 +278,10 @@ export class RecruitmentRepository {
         openedDate: new Date(),
         jd: input.jd ?? null,
         createdById: actor.employeeId,
-        approvals: { create: input.approverIds.map((approverId) => ({ approverId })) },
+        // Nested creates bypass the tenant extension — stamp companyId explicitly.
+        approvals: { create: input.approverIds.map((approverId) => ({ approverId, companyId: this.tenant.companyId })) },
         hiringTeam: {
-          create: input.hiringTeam.map((m) => ({ employeeId: m.employeeId, isPanelMember: m.isPanelMember })),
+          create: input.hiringTeam.map((m) => ({ employeeId: m.employeeId, isPanelMember: m.isPanelMember, companyId: this.tenant.companyId })),
         },
         scorecardCriteria: {
           create: guide.map((s, i) => ({
@@ -286,6 +289,7 @@ export class RecruitmentRepository {
             weight: s.weight ?? null,
             guidance: s.guidance ?? null,
             order: i,
+            companyId: this.tenant.companyId,
           })),
         },
       },
@@ -625,9 +629,10 @@ export class RecruitmentRepository {
         consentAt: new Date(),
         consentVersion: PRIVACY_CONSENT_VERSION,
         answers: {
+          // Nested create — stamp explicitly (tenant extension skips these).
           create: input.answers
             .filter((a) => validQuestionIds.has(a.questionId))
-            .map((a) => ({ questionId: a.questionId, answer: a.answer })),
+            .map((a) => ({ questionId: a.questionId, answer: a.answer, companyId: this.tenant.companyId })),
         },
       },
     });
@@ -1372,10 +1377,12 @@ export class RecruitmentRepository {
           status,
           submittedAt: new Date(),
           ratings: {
+            // Nested create — stamp explicitly (tenant extension skips these).
             create: input.ratings.map((r) => ({
               criterionId: r.criterionId,
               rating: r.rating,
               notes: r.notes ?? null,
+              companyId: this.tenant.companyId,
             })),
           },
         },

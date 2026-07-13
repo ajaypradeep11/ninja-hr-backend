@@ -4,6 +4,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { GetSettingsQuery } from '../application/queries/get-settings.query';
 import { GetAgentRunsQuery } from '../application/queries/get-agent-runs.query';
+import { ActorCtx, type ActorContext } from 'src/platform/auth/actor-context';
 import { AskCopilotQuery } from '../application/queries/ask-copilot.query';
 import { SaveSettingsCommand } from '../application/commands/save-settings.command';
 import { CreateAgentRunCommand } from '../application/commands/create-agent-run.command';
@@ -64,8 +65,8 @@ export class PlatformController {
   }
 
   @Post('copilot/ask')
-  askCopilot(@Body() body: AskCopilotDto, @Actor() persona: Persona) {
-    return this.queries.execute(new AskCopilotQuery(body.question, persona));
+  askCopilot(@Body() body: AskCopilotDto, @Actor() persona: Persona, @ActorCtx() actor: ActorContext) {
+    return this.queries.execute(new AskCopilotQuery(body.question, persona, actor));
   }
 
   /* -------------------- Custom Calculator Engine --------------------- */

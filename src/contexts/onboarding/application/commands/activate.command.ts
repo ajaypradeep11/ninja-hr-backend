@@ -24,6 +24,10 @@ export class ActivateHandler implements ICommandHandler<ActivateCommand, Onboard
     }
     await this.repo.setStatus(id, 'Active');
     await this.repo.addAudit(id, 'Account activated — payroll set to Active, SSO provisioned');
+    const published = await this.repo.publishVerifiedDocsToVault(id);
+    if (published > 0) {
+      await this.repo.addAudit(id, `${published} verified document(s) filed to the employee's vault`);
+    }
     return this.repo.findById(id);
   }
 }

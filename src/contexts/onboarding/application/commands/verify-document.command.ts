@@ -16,6 +16,10 @@ export class VerifyDocumentHandler implements ICommandHandler<VerifyDocumentComm
     const updated = await this.repo.verifyDocument(id, docId);
     if (!updated) throw new NotFoundException(`Document ${docId} not found on case ${id}`);
     await this.repo.addAudit(id, `HR verified document ${docId}`);
+    // Already-active case (late verification): file it to the vault right away —
+    // for pre-activation verifications ActivateHandler publishes the batch.
+    const c = await this.repo.findById(id);
+    if (c?.status === 'Active') await this.repo.publishVerifiedDocsToVault(id);
     return settle(this.repo, id);
   }
 }

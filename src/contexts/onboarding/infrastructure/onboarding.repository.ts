@@ -1,6 +1,7 @@
 // src/contexts/onboarding/infrastructure/onboarding.repository.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
+import { TenantContext } from 'src/platform/database/tenant-context';
 import type { ProvinceCode } from 'src/shared-kernel/province';
 import { rowToCase, caseStatusToDb, ownerToDb, taskStatusToDb, accessToDb, docStatusToDb } from './onboarding.mapper';
 import type { OnboardingCase, ChecklistTask, ChecklistTaskInput, CaseDocument } from '../domain/onboarding.types';
@@ -22,7 +23,10 @@ const INCLUDE = {
 
 @Injectable()
 export class OnboardingRepository {
-  constructor(private readonly prisma: TenantPrismaService) {}
+  constructor(
+    private readonly prisma: TenantPrismaService,
+    private readonly tenant: TenantContext,
+  ) {}
 
   async findById(id: string): Promise<OnboardingCase | null> {
     const row = await this.prisma.onboardingCase.findUnique({ where: { id }, include: INCLUDE });
@@ -73,11 +77,16 @@ export class OnboardingRepository {
         status: 'INVITED',
         forms: { personal: false, td1: false, directDeposit: false, benefits: false, handbook: false },
         policiesAttached: [],
+        // NESTED creates bypass the tenant extension (it only intercepts
+        // top-level ops) — stamp companyId explicitly or these rows are born
+        // tenantless: visible via relation includes but unmatchable by every
+        // scoped mutation (tasks "display but can't be updated").
         checklist: { create: input.checklist.map((t, i) => ({
           label: t.label, owner: ownerToDb[t.owner] as never, status: 'PENDING',
           blocking: t.blocking, dataAccess: accessToDb[t.dataAccess] as never, order: i,
+          companyId: this.tenant.companyId,
         })) },
-        auditLog: { create: input.audit.map((event) => ({ event })) },
+        auditLog: { create: input.audit.map((event) => ({ event, companyId: this.tenant.companyId })) },
       },
       include: INCLUDE,
     });
@@ -238,4 +247,47 @@ export class OnboardingRepository {
   async setPolicies(id: string, policiesAttached: string[]): Promise<void> {
     await this.prisma.onboardingCase.update({ where: { id }, data: { policiesAttached } });
   }
+
+  /**
+   * Copies the case's VERIFIED documents into the employee's personal vault
+   * (folder 02_Onboarding_and_Tax) so they appear in "My Profile → Documents".
+   * Only when an owning Employee can be matched (by case name): a personal doc
+   * must never land in the vault UNOWNED with Employee access — that would be
+   * company-wide visible. Idempotent by (employee, folder, name). Returns the
+   * number of newly published documents.
+   */
+  async publishVerifiedDocsToVault(caseId: string): Promise<number> {
+    const row = await this.prisma.onboardingCase.findUnique({
+      where: { id: caseId },
+      select: { name: true, documents: { select: { name: true, type: true, status: true } } },
+    });
+    if (!row) return 0;
+    const emp = await this.prisma.employee.findFirst({ where: { name: row.name }, select: { id: true } });
+    if (!emp) return 0; // no Employee record yet (activation does not create one) — nothing to attach to
+
+    const verified = row.documents.filter((d) => d.status === 'VERIFIED');
+    if (verified.length === 0) return 0;
+    const existing = await this.prisma.vaultDocument.findMany({
+      where: { employeeId: emp.id, folder: ONBOARDING_VAULT_FOLDER },
+      select: { name: true },
+    });
+    const have = new Set(existing.map((d) => d.name));
+    const fresh = verified.filter((d) => !have.has(d.name));
+    for (const d of fresh) {
+      await this.prisma.vaultDocument.create({
+        data: {
+          name: d.name,
+          type: d.type || 'Onboarding document',
+          folder: ONBOARDING_VAULT_FOLDER,
+          access: 'EMPLOYEE',
+          uploaded: new Date(),
+          employeeId: emp.id,
+        },
+      });
+    }
+    return fresh.length;
+  }
 }
+
+/** Canonical vault folder for onboarding paperwork (see workplace VAULT_FOLDERS). */
+const ONBOARDING_VAULT_FOLDER = '02_Onboarding_and_Tax';
