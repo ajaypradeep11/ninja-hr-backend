@@ -249,6 +249,88 @@ export class OnboardingRepository {
   }
 
   /**
+   * Activation creates the HRIS record: the onboarding case (plus the new
+   * hire's submitted profile) becomes an ACTIVE Employee + EMPLOYEE User, so
+   * the person appears in the directory and can sign in (ActorGuard links
+   * their Firebase identity by verified-email match on first login).
+   * Idempotent: re-activation replays return the existing employee.
+   */
+  async provisionEmployee(caseId: string): Promise<{ created: boolean; employeeId: string } | null> {
+    const row = await this.prisma.onboardingCase.findUnique({ where: { id: caseId } });
+    if (!row) return null;
+    const existing = await this.prisma.employee.findFirst({ where: { email: row.personalEmail } });
+    if (existing) return { created: false, employeeId: existing.id };
+
+    // The preboarding profile is optional shape-wise — activation gates require
+    // the forms done, but stay defensive about individual fields.
+    const p = (row.profile ?? {}) as Partial<{
+      legalFirstName: string; legalLastName: string; preferredName: string;
+      dateOfBirth: string; birthdayPrivate: boolean; sin: string; phone: string;
+      addressStreet: string; addressCity: string; addressPostal: string;
+      emergencyName: string; emergencyRelationship: string; emergencyPhone: string;
+      workEligibility: string; workPermitExpiry: string;
+      bankInstitution: string; bankTransit: string; bankAccount: string;
+    }>;
+    const legalName = [p.legalFirstName, p.legalLastName].filter(Boolean).join(' ').trim() || row.name;
+    const eligibility = ELIGIBILITY_TO_DB[p.workEligibility ?? ''] ?? null;
+
+    const employee = await this.prisma.employee.create({
+      data: {
+        name: legalName,
+        preferredName: p.preferredName?.trim() || null,
+        title: row.title,
+        department: row.department,
+        province: row.province,
+        email: row.personalEmail,
+        personalEmail: row.personalEmail,
+        hireDate: row.startDate,
+        birthDate: p.dateOfBirth ? new Date(p.dateOfBirth) : new Date('1970-01-01T00:00:00.000Z'),
+        birthdayPrivate: p.birthdayPrivate ?? false,
+        status: 'ACTIVE',
+        salary: 0, // compensation is set by HR post-hire; the wizard never collects it
+        employeeNumber: await this.nextEmployeeNumber(),
+        phone: p.phone || null,
+        addressStreet: p.addressStreet || null,
+        addressCity: p.addressCity || null,
+        addressProvince: row.province,
+        addressPostal: p.addressPostal || null,
+        sin: p.sin || null,
+        bankInstitution: p.bankInstitution || null,
+        bankTransit: p.bankTransit || null,
+        bankAccount: p.bankAccount || null,
+        workEligibility: eligibility as never,
+        workPermitExpiry: p.workPermitExpiry ? new Date(p.workPermitExpiry) : null,
+      },
+    });
+    // Top-level creates on purpose (nested writes bypass the tenant stamping).
+    await this.prisma.user.create({ data: { employeeId: employee.id, role: 'EMPLOYEE' } });
+    if (p.emergencyName) {
+      await this.prisma.emergencyContact.create({
+        data: {
+          employeeId: employee.id,
+          name: p.emergencyName,
+          relationship: p.emergencyRelationship || 'Not specified',
+          phone: p.emergencyPhone || '',
+        },
+      });
+    }
+    return { created: true, employeeId: employee.id };
+  }
+
+  /** Next EMP-NNNN directory number (max existing + 1; null on any oddity). */
+  private async nextEmployeeNumber(): Promise<string | null> {
+    const rows = await this.prisma.employee.findMany({
+      where: { employeeNumber: { startsWith: 'EMP-' } },
+      select: { employeeNumber: true },
+    });
+    const max = rows
+      .map((r) => Number(r.employeeNumber?.slice(4)))
+      .filter((n) => Number.isFinite(n))
+      .reduce((a, b) => Math.max(a, b), 0);
+    return `EMP-${String(max + 1).padStart(4, '0')}`;
+  }
+
+  /**
    * Copies the case's VERIFIED documents into the employee's personal vault
    * (folder 02_Onboarding_and_Tax) so they appear in "My Profile → Documents".
    * Only when an owning Employee can be matched (by case name): a personal doc
@@ -291,3 +373,11 @@ export class OnboardingRepository {
 
 /** Canonical vault folder for onboarding paperwork (see workplace VAULT_FOLDERS). */
 const ONBOARDING_VAULT_FOLDER = '02_Onboarding_and_Tax';
+
+/** Wizard label → WorkEligibility enum (mirrors people.mapper workEligibilityToDb). */
+const ELIGIBILITY_TO_DB: Record<string, string> = {
+  Citizen: 'CITIZEN',
+  'Permanent Resident': 'PERMANENT_RESIDENT',
+  'Work Permit': 'WORK_PERMIT',
+  'Study Permit': 'STUDY_PERMIT',
+};
