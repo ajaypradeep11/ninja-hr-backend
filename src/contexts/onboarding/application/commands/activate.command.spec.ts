@@ -62,12 +62,25 @@ describe('ActivateHandler', () => {
     expect(calls.provisioned).toEqual([]);
   });
 
-  it('is an idempotent replay for an already-Active case', async () => {
+  it('replay on an Active case with an existing employee changes nothing', async () => {
     const active = { ...readyCase, status: 'Active' as const };
     const { repo, calls } = makeRepo(active);
+    (repo as { provisionEmployee: unknown }).provisionEmployee = async () => ({ created: false, employeeId: 'emp1' });
     const out = await new ActivateHandler(repo).execute(new ActivateCommand('c1'));
     expect(out?.status).toBe('Active');
     expect(calls.setStatus).toEqual([]);
-    expect(calls.provisioned).toEqual([]);
+    expect(calls.published).toEqual([]);
+  });
+
+  it('replay on an Active case SELF-HEALS a missing employee record', async () => {
+    // Cases activated before activation provisioned employees: re-clicking
+    // Activate creates the missing record and files the verified docs.
+    const active = { ...readyCase, status: 'Active' as const };
+    const { repo, calls } = makeRepo(active);
+    await new ActivateHandler(repo).execute(new ActivateCommand('c1'));
+    expect(calls.setStatus).toEqual([]); // status untouched
+    expect(calls.provisioned).toEqual(['c1']);
+    expect(calls.published).toEqual(['c1']);
+    expect(calls.audit).toContain('Employee record created — now listed in the employee directory');
   });
 });

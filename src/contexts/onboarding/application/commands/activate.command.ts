@@ -15,7 +15,17 @@ export class ActivateHandler implements ICommandHandler<ActivateCommand, Onboard
   async execute({ id }: ActivateCommand): Promise<OnboardingCase | null> {
     const c = await this.repo.findById(id);
     if (!c) throw new NotFoundException(`Onboarding case ${id} not found`);
-    if (c.status === 'Active') return c; // idempotent replay
+    if (c.status === 'Active') {
+      // Idempotent replay — but self-heal cases activated before activation
+      // provisioned employees: create the missing record/vault copies now.
+      const healed = await this.repo.provisionEmployee(id);
+      if (healed?.created) {
+        await this.repo.addAudit(id, 'Employee record created — now listed in the employee directory');
+        await this.repo.publishVerifiedDocsToVault(id);
+        return this.repo.findById(id);
+      }
+      return c;
+    }
     const failed = activationGates(c).filter((g) => !g.ok);
     if (failed.length > 0) {
       throw new ConflictException(
