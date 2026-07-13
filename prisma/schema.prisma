@@ -761,6 +761,11 @@ model VaultDocument {
   folder     String
   access     DocAccess
   uploaded   DateTime
+  /// Optional stored file (manual vault uploads). Reads must exclude `data` —
+  /// it streams through its own endpoint, mirroring CaseDocument.
+  mimeType   String?
+  size       Int?
+  data       Bytes?
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   employeeId String?
   companyId  String?

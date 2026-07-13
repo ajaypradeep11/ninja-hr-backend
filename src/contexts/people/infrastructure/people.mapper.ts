@@ -129,6 +129,7 @@ export function rowToEmployeeDetail(row: any): EmployeeDetail {
         name: d.name,
         type: d.type,
         folder: d.folder,
+        hasFile: d.mimeType != null,
         uploaded: iso(d.uploaded),
       }),
     ),

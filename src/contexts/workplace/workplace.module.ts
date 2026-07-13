@@ -26,7 +26,7 @@ import {
   IssueLetterHandler,
   UpdateLetterTemplateHandler,
 } from './application/letters.handlers';
-import { DeleteVaultDocumentHandler, UploadVaultDocumentHandler } from './application/documents.handlers';
+import { DeleteVaultDocumentHandler, GetVaultDocumentFileHandler, UploadVaultDocumentHandler } from './application/documents.handlers';
 
 @Module({
   imports: [CqrsModule],
@@ -36,6 +36,7 @@ import { DeleteVaultDocumentHandler, UploadVaultDocumentHandler } from './applic
     GetVaultDocumentsHandler,
     UploadVaultDocumentHandler,
     DeleteVaultDocumentHandler,
+    GetVaultDocumentFileHandler,
     GetTrainingCoursesHandler,
     CreateCourseHandler,
     UpdateCourseHandler,

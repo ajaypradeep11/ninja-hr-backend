@@ -24,6 +24,18 @@ export class UploadVaultDocumentDto {
   @ApiProperty({ enum: DOC_ACCESS }) @IsIn(DOC_ACCESS) access!: DocAccess;
   /** Optional owner — links the document to an employee's personal vault. */
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) employeeName?: string;
+
+  @ApiProperty({ required: false, enum: ['application/pdf', 'image/png', 'image/jpeg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'] })
+  @IsOptional()
+  @IsIn(['application/pdf', 'image/png', 'image/jpeg', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+  mimeType?: string;
+
+  /** Base64 payload, ~8 MB file ceiling (mirrors the preboarding upload cap). */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(11_500_000)
+  dataBase64?: string;
 }
 
 export class CreateCourseDto {

@@ -51,7 +51,8 @@ export class PeopleRepository {
       where: { id },
       include: {
         emergencyContacts: { orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }] },
-        documents: { orderBy: { uploaded: 'desc' } },
+        // omit the file binary — detail reads only need metadata + hasFile
+        documents: { orderBy: { uploaded: 'desc' }, omit: { data: true } },
       },
     });
     if (!row) throw new NotFoundException(`Employee ${id} not found`);

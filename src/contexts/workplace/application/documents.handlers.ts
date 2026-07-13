@@ -1,6 +1,6 @@
 // src/contexts/workplace/application/documents.handlers.ts
 // Document vault: manual uploads from the Documents module dropzone.
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
+import { CommandHandler, ICommandHandler, IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import type { UploadVaultDocumentInput } from '../domain/workplace.types';
 import { WorkplaceRepository } from '../infrastructure/workplace.repository';
 
@@ -26,5 +26,20 @@ export class DeleteVaultDocumentHandler implements ICommandHandler<DeleteVaultDo
   async execute({ id }: DeleteVaultDocumentCommand): Promise<{ ok: true }> {
     await this.repo.removeVaultDocument(id);
     return { ok: true };
+  }
+}
+
+export class GetVaultDocumentFileQuery {
+  constructor(
+    public readonly id: string,
+    public readonly actor: { role?: string; employeeId?: string | null },
+  ) {}
+}
+
+@QueryHandler(GetVaultDocumentFileQuery)
+export class GetVaultDocumentFileHandler implements IQueryHandler<GetVaultDocumentFileQuery> {
+  constructor(private readonly repo: WorkplaceRepository) {}
+  execute({ id, actor }: GetVaultDocumentFileQuery) {
+    return this.repo.getVaultDocumentFile(id, actor);
   }
 }

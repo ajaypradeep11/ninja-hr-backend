@@ -35,6 +35,9 @@ export function rowToVaultDocument(row: any): VaultDocument {
     type: row.type,
     uploaded: iso(row.uploaded),
     access: docAccessFromDb[row.access as keyof typeof docAccessFromDb],
+    // mimeType presence marks a stored file — list queries never select `data`.
+    hasFile: row.mimeType != null,
+    size: row.size ?? null,
   };
 }
 

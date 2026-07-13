@@ -1,5 +1,6 @@
 // src/contexts/workplace/interface/workplace.controller.ts
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ActorCtx, type ActorContext } from 'src/platform/auth/actor-context';
@@ -27,7 +28,7 @@ import {
   IssueLetterCommand,
   UpdateLetterTemplateCommand,
 } from '../application/letters.handlers';
-import { DeleteVaultDocumentCommand, UploadVaultDocumentCommand } from '../application/documents.handlers';
+import { DeleteVaultDocumentCommand, GetVaultDocumentFileQuery, UploadVaultDocumentCommand } from '../application/documents.handlers';
 import {
   AssignTrainingDto,
   CreateCourseDto,
@@ -62,6 +63,28 @@ export class WorkplaceController {
   @Roles('HR_ADMIN')
   uploadVaultDocument(@Body() body: UploadVaultDocumentDto) {
     return this.commands.execute(new UploadVaultDocumentCommand(body));
+  }
+
+  /** Streams a stored vault file — HR, or the owning employee. */
+  @Get('documents/:id/file')
+  async downloadVaultDocument(
+    @Param('id') id: string,
+    @ActorCtx() actor: ActorContext,
+    @Res() res: Response,
+  ) {
+    const file = (await this.queries.execute(new GetVaultDocumentFileQuery(id, actor))) as {
+      name: string;
+      mimeType: string;
+      data: Buffer;
+    };
+    const ascii = file.name.replace(/"/g, '').replace(/[^\x20-\x7E]/g, '-');
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+    );
+    res.send(file.data);
   }
 
   /** Remove a vault document — HR curates employee file cabinets. */

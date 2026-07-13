@@ -14,6 +14,7 @@ import type {
   LetterTemplateInput,
   IssueLetterInput,
   UploadVaultDocumentInput,
+  VaultDocumentFile,
 } from '../domain/workplace.types';
 import {
   docAccessToDb,
@@ -46,7 +47,11 @@ export class WorkplaceRepository {
           // Company-wide docs (no owner) or the caller's own personal docs only.
           OR: [{ employeeId: null }, ...(actor?.employeeId ? [{ employeeId: actor.employeeId }] : [])],
         };
-    const rows = await this.prisma.vaultDocument.findMany({ where, orderBy: { uploaded: 'desc' } });
+    const rows = await this.prisma.vaultDocument.findMany({
+      where,
+      orderBy: { uploaded: 'desc' },
+      omit: { data: true }, // never drag file binaries into list reads
+    });
     return rows.map(rowToVaultDocument);
   }
 
@@ -63,6 +68,7 @@ export class WorkplaceRepository {
       ? await this.prisma.employee.findFirst({ where: { name: input.employeeName } })
       : null;
     if (input.employeeName && !emp) throw new NotFoundException('Employee not found');
+    const file = input.dataBase64 ? Buffer.from(input.dataBase64, 'base64') : null;
     const created = await this.prisma.vaultDocument.create({
       data: {
         name: input.name,
@@ -71,9 +77,21 @@ export class WorkplaceRepository {
         access: docAccessToDb[input.access] as never,
         uploaded: new Date(),
         ...(emp ? { employeeId: emp.id } : {}),
+        ...(file && input.mimeType ? { data: file, mimeType: input.mimeType, size: file.byteLength } : {}),
       },
+      omit: { data: true },
     });
     return rowToVaultDocument(created);
+  }
+
+  /** The stored file for streaming — HR, or the employee who owns the document. */
+  async getVaultDocumentFile(id: string, actor?: { role?: string; employeeId?: string | null }): Promise<VaultDocumentFile> {
+    const row = await this.prisma.vaultDocument.findUnique({ where: { id } });
+    if (!row || !row.data || !row.mimeType) throw new NotFoundException('No file stored for this document');
+    if (actor?.role !== 'HR_ADMIN' && row.employeeId !== actor?.employeeId) {
+      throw new NotFoundException('No file stored for this document'); // don't leak existence
+    }
+    return { name: row.name, mimeType: row.mimeType, data: Buffer.from(row.data) };
   }
 
   /* ---------------------- Letter Lab (HR letters) -------------------- */

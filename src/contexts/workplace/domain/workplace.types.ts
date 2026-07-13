@@ -9,6 +9,15 @@ export interface VaultDocument {
   type: string;
   uploaded: string; // ISO-10 date YYYY-MM-DD
   access: DocAccess;
+  /** True when the row carries a stored file (streams via /documents/:id/file). */
+  hasFile: boolean;
+  size?: number | null;
+}
+
+export interface VaultDocumentFile {
+  name: string;
+  mimeType: string;
+  data: Buffer;
 }
 
 /** Manual vault upload (Documents module dropzone). Metadata only — the
@@ -21,6 +30,9 @@ export interface UploadVaultDocumentInput {
   access: DocAccess;
   /** Optional owner — links the document to an employee's personal vault. */
   employeeName?: string;
+  /** Optional stored file — base64 payload + its MIME type (both or neither). */
+  mimeType?: string;
+  dataBase64?: string;
 }
 
 export type TrainingStatus = 'Assigned' | 'In-Progress' | 'Completed';
