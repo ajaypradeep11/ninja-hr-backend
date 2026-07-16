@@ -58,7 +58,7 @@ export class GeminiProvider implements LlmProvider, LlmClassifier {
 
   async classify(system: string, text: string): Promise<string> {
     const ai = this.client();
-    const model = process.env.GEMINI_CLASSIFIER_MODEL || 'gemini-2.5-flash-lite';
+    const model = process.env.GEMINI_CLASSIFIER_MODEL || 'gemini-3.1-flash-lite';
     try {
       const response = await ai.models.generateContent({
         model,

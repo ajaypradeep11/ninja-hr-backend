@@ -196,7 +196,7 @@ describe('GeminiProvider', () => {
       mockGenerateContent.mockResolvedValue({ text: ' allowed ' });
       await expect(provider.classify('system', 'message')).resolves.toBe('allowed');
       expect(mockGenerateContent).toHaveBeenCalledWith({
-        model: 'gemini-2.5-flash-lite',
+        model: 'gemini-3.1-flash-lite',
         contents: [{ role: 'user', parts: [{ text: 'message' }] }],
         config: { systemInstruction: 'system', maxOutputTokens: 256, temperature: 0 },
       });
