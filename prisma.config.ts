@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './src/platform/database/resolve-db-env'; // rewrites DATABASE_URL/DIRECT_URL from DB_LIVE
 import { defineConfig } from 'prisma/config';
 
 export default defineConfig({

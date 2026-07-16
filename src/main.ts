@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import './platform/database/resolve-db-env'; // rewrites DATABASE_URL from DB_LIVE — must precede PrismaService
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

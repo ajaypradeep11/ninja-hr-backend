@@ -1,6 +1,7 @@
 // prisma/seed.ts — idempotent demo seed (safe to re-run against a live DB).
 // Run: npm run db:seed
 import 'dotenv/config';
+import '../src/platform/database/resolve-db-env'; // rewrites DATABASE_URL from DB_LIVE before the client below
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/platform/database/generated/prisma/client';
 import { tenantExtension } from '../src/platform/database/tenant.extension';
