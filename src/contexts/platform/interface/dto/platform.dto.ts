@@ -1,6 +1,6 @@
 // src/contexts/platform/interface/dto/platform.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsArray, IsNotEmpty, IsNumber, IsOptional, IsString, IsIn, IsObject, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { IsBoolean, IsArray, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsIn, IsObject, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { AgentStatus } from '../../domain/platform.types';
 
@@ -61,6 +61,14 @@ export class AskCopilotDto {
   @ApiProperty({ maxLength: 2000 }) @IsString() @IsNotEmpty() @MaxLength(2000) question!: string;
 }
 
+export class SendChatMessageDto {
+  @ApiProperty({ maxLength: 4000 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  content!: string;
+}
+
 /* -------------------- Custom Calculator Engine --------------------- */
 
 const CALC_CATEGORIES = ['Timesheet', 'Accrual', 'Bonus'] as const;
@@ -106,4 +114,38 @@ export class UpdateCalcRuleDto {
   @ApiProperty({ required: false }) @IsOptional() @IsNumber() @Min(0) @Max(1000000) value?: number;
 
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() active?: boolean;
+}
+
+/* ---------------------- Policy handbook (RAG) ---------------------- */
+
+const POLICY_SOURCE_TYPES = ['pdf', 'text'] as const;
+
+export class UploadPolicyDocumentDto {
+  @ApiProperty({ maxLength: 200 }) @IsString() @IsNotEmpty() @MaxLength(200) title!: string;
+
+  @ApiProperty({ enum: POLICY_SOURCE_TYPES })
+  @IsIn(POLICY_SOURCE_TYPES as unknown as string[])
+  sourceType!: 'pdf' | 'text';
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(6_000_000)
+  base64?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500_000)
+  text?: string;
+}
+
+export class ListModerationEventsDto {
+  @ApiProperty({ required: false, minimum: 1, maximum: 500, default: 200 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
 }

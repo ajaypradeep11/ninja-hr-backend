@@ -118,4 +118,66 @@ export interface IssueLetterInput {
   employeeId: string;
   name: string;
   mode: 'save' | 'signature';
+  content?: string;
+}
+
+export type LetterKind =
+  | 'cover'
+  | 'employment_verification'
+  | 'promotion'
+  | 'probation'
+  | 'custom';
+
+export interface LetterMergeEmployee {
+  id: string;
+  name: string;
+  title: string;
+  department: string;
+  province: string;
+  hireDate: Date;
+  salary: number;
+  manager: string | null;
+  employeeNumber: string | null;
+}
+
+export interface DraftLetterInput {
+  employeeId: string;
+  instructions: string;
+  kind?: LetterKind;
+  templateId?: string;
+}
+
+export interface DraftLetterResult {
+  text: string;
+  live: boolean;
+  blockedCategory?: string;
+}
+
+export type MassCohort =
+  | { type: 'all' }
+  | { type: 'department'; value: string }
+  | { type: 'province'; value: string }
+  | { type: 'manual'; employeeIds: string[] };
+
+export interface MassLetterInput {
+  templateId: string;
+  cohort: MassCohort;
+  mode: 'save' | 'signature';
+  personalizeWithAi?: boolean;
+  instructions?: string;
+}
+
+export interface MassLetterPayload {
+  employeeName: string;
+  documentName: string;
+  body: string;
+  mode: 'save' | 'signature';
+  aiPersonalized: boolean;
+  error?: string;
+  vaultDocumentId?: string;
+}
+
+export interface MassLetterResult {
+  runId: string;
+  affected: number;
 }

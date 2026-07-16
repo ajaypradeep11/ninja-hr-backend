@@ -2,6 +2,7 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { PlatformRepository } from '../../infrastructure/platform.repository';
 import type { AgentRun, AgentStatus } from '../../domain/platform.types';
+import { MassLetterApprovalService } from 'src/contexts/workplace/infrastructure/mass-letter-approval.service';
 
 export class SetAgentRunStatusCommand {
   constructor(
@@ -14,8 +15,12 @@ export class SetAgentRunStatusCommand {
 export class SetAgentRunStatusHandler
   implements ICommandHandler<SetAgentRunStatusCommand, AgentRun[]>
 {
-  constructor(private readonly repo: PlatformRepository) {}
-  execute({ id, status }: SetAgentRunStatusCommand): Promise<AgentRun[]> {
+  constructor(private readonly repo: PlatformRepository, private readonly massLetters: MassLetterApprovalService) {}
+  async execute({ id, status }: SetAgentRunStatusCommand): Promise<AgentRun[]> {
+    if (status === 'Completed') {
+      const handled = await this.massLetters.tryApprove(id);
+      if (handled) return this.repo.getAgentRuns();
+    }
     return this.repo.setAgentRunStatus(id, status);
   }
 }

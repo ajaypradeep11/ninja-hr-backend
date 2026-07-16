@@ -7,6 +7,7 @@ import type {
   AgentStatus,
   CalcRule,
   CalcRuleInput,
+  ModerationEventView,
 } from '../domain/platform.types';
 import { DEFAULT_DEPARTMENTS, DEFAULT_SETTINGS } from '../domain/platform.types';
 import {
@@ -66,7 +67,7 @@ export class PlatformRepository {
   }
 
   async getAgentRuns(): Promise<AgentRun[]> {
-    const rows = await this.prisma.agentRun.findMany();
+    const rows = await this.prisma.agentRun.findMany({ include: { items: { orderBy: { id: 'asc' } } } });
     return rows.map(rowToAgentRun);
   }
 
@@ -94,6 +95,21 @@ export class PlatformRepository {
       },
     });
     return this.getAgentRuns();
+  }
+
+  async getModerationEvents(limit = 200): Promise<ModerationEventView[]> {
+    const rows = await this.prisma.moderationEvent.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      stage: row.stage,
+      category: row.category,
+      inputHash: row.inputHash,
+      createdAt: row.createdAt.toISOString(),
+    }));
   }
 
   /* -------------------- Custom Calculator Engine --------------------- */

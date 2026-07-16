@@ -1,6 +1,13 @@
 // src/contexts/platform/domain/platform.types.ts
 
 export type AgentStatus = 'Running' | 'Awaiting Approval' | 'Completed';
+export type AgentRunItemStatus = 'Pending' | 'Issued' | 'Failed';
+export interface AgentRunItem {
+  id: string;
+  employeeId: string;
+  payload: import('../../workplace/domain/workplace.types').MassLetterPayload;
+  status: AgentRunItemStatus;
+}
 
 export interface AgentRun {
   id: string;
@@ -10,6 +17,7 @@ export interface AgentRun {
   affected: number;
   summary: string;
   time: string;
+  items: AgentRunItem[];
 }
 
 export interface Integrations {
@@ -96,4 +104,15 @@ export interface CalcRuleInput {
   action: string;
   value: number;
   active?: boolean;
+}
+
+/* -------------------- AI Guardrails: moderation log --------------------- */
+
+export interface ModerationEventView {
+  id: string;
+  userId: string | null;
+  stage: string;
+  category: string;
+  inputHash: string;
+  createdAt: string;
 }

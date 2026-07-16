@@ -1,8 +1,11 @@
 // src/contexts/workplace/application/letters.handlers.ts
 // Letter Lab: HR document templates + issuing generated letters to the vault.
 import { CommandHandler, ICommandHandler, IQueryHandler, QueryHandler } from '@nestjs/cqrs';
-import type { IssueLetterInput, LetterTemplateInput } from '../domain/workplace.types';
+import type { ActorContext } from 'src/platform/auth/actor-context';
+import type { DraftLetterInput, IssueLetterInput, LetterTemplateInput, MassLetterInput } from '../domain/workplace.types';
 import { WorkplaceRepository } from '../infrastructure/workplace.repository';
+import { LetterDraftService } from '../infrastructure/letter-draft.service';
+import { MassLetterService } from '../infrastructure/mass-letter.service';
 
 /* ------------------------------ Queries ------------------------------ */
 
@@ -58,13 +61,31 @@ export class DeleteLetterTemplateHandler implements ICommandHandler<DeleteLetter
 }
 
 export class IssueLetterCommand {
-  constructor(public readonly input: IssueLetterInput) {}
+  constructor(public readonly input: IssueLetterInput, public readonly actor: ActorContext) {}
 }
 
 @CommandHandler(IssueLetterCommand)
 export class IssueLetterHandler implements ICommandHandler<IssueLetterCommand> {
   constructor(private readonly repo: WorkplaceRepository) {}
   execute(c: IssueLetterCommand) {
-    return this.repo.issueLetter(c.input);
+    return this.repo.issueLetter(c.input, c.actor);
   }
+}
+
+export class DraftLetterCommand {
+  constructor(public readonly input: DraftLetterInput, public readonly actor: ActorContext) {}
+}
+@CommandHandler(DraftLetterCommand)
+export class DraftLetterHandler implements ICommandHandler<DraftLetterCommand> {
+  constructor(private readonly drafts: LetterDraftService) {}
+  execute(c: DraftLetterCommand) { return this.drafts.draft(c.input, c.actor); }
+}
+
+export class CreateMassLetterRunCommand {
+  constructor(public readonly input: MassLetterInput, public readonly actor: ActorContext) {}
+}
+@CommandHandler(CreateMassLetterRunCommand)
+export class CreateMassLetterRunHandler implements ICommandHandler<CreateMassLetterRunCommand> {
+  constructor(private readonly massLetters: MassLetterService) {}
+  execute(c: CreateMassLetterRunCommand) { return this.massLetters.queue(c.input, c.actor); }
 }

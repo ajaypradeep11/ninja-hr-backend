@@ -1,4 +1,4 @@
-import { agentStatusToDb, agentStatusFromDb } from './platform.mapper';
+import { agentStatusToDb, agentStatusFromDb, rowToAgentRun } from './platform.mapper';
 
 describe('platform enum maps', () => {
   it('round-trips Running', () => {
@@ -22,5 +22,11 @@ describe('platform enum maps', () => {
       const db = agentStatusToDb[s];
       expect(agentStatusFromDb[db]).toBe(s);
     }
+  });
+
+  it('maps nested mass-letter items and defaults generic runs to none', () => {
+    const base = { id: 'r1', intent: 'run', status: 'AWAITING_APPROVAL', progress: 100, affected: 1, summary: 'ready', time: 'now' };
+    expect(rowToAgentRun(base).items).toEqual([]);
+    expect(rowToAgentRun({ ...base, items: [{ id: 'i1', employeeId: 'e1', status: 'Pending', payload: { employeeName: 'A', documentName: 'A.txt', body: 'Body', mode: 'save', aiPersonalized: false } }] }).items[0].payload.body).toBe('Body');
   });
 });

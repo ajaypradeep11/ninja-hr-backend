@@ -128,9 +128,12 @@ export class WorkplaceRepository {
 
   /** File a generated letter into the employee's vault (Documents tab).
    *  `signature` mode marks it as awaiting e-signature. */
-  async issueLetter(input: IssueLetterInput): Promise<VaultDocument> {
+  async issueLetter(input: IssueLetterInput, actor?: ActorContext): Promise<VaultDocument> {
     const emp = await this.prisma.employee.findUnique({ where: { id: input.employeeId } });
-    if (!emp) throw new NotFoundException('Employee not found');
+    if (!emp || (actor?.role === 'MANAGER' && emp.manager !== actor.employeeName)) {
+      throw new NotFoundException('Employee not found');
+    }
+    const content = input.content === undefined ? undefined : Buffer.from(input.content, 'utf8');
     const created = await this.prisma.vaultDocument.create({
       data: {
         name: input.name,
@@ -139,7 +142,9 @@ export class WorkplaceRepository {
         access: 'EMPLOYEE',
         uploaded: new Date(),
         employeeId: emp.id,
+        ...(content ? { data: content, mimeType: 'text/plain', size: content.byteLength } : {}),
       },
+      omit: { data: true },
     });
     return rowToVaultDocument(created);
   }

@@ -24,6 +24,26 @@ export function rowToAgentRun(row: any): AgentRun {
     affected: row.affected,
     summary: row.summary,
     time: row.time,
+    items: Array.isArray(row.items) ? row.items.map(rowToAgentRunItem) : [],
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToAgentRunItem(row: any): AgentRun['items'][number] {
+  const raw = row?.payload && typeof row.payload === 'object' && !Array.isArray(row.payload) ? row.payload : {};
+  const valid = typeof raw.employeeName === 'string' && typeof raw.documentName === 'string' && typeof raw.body === 'string';
+  const mode = raw.mode === 'signature' ? 'signature' : 'save';
+  return {
+    id: String(row?.id ?? ''), employeeId: String(row?.employeeId ?? ''),
+    status: ['Pending', 'Issued', 'Failed'].includes(row?.status) ? row.status : 'Failed',
+    payload: {
+      employeeName: typeof raw.employeeName === 'string' ? raw.employeeName : 'Unknown employee',
+      documentName: typeof raw.documentName === 'string' ? raw.documentName : 'Letter.txt',
+      body: typeof raw.body === 'string' ? raw.body : '', mode,
+      aiPersonalized: raw.aiPersonalized === true,
+      ...(typeof raw.error === 'string' ? { error: raw.error } : !valid ? { error: 'Invalid historical payload' } : {}),
+      ...(typeof raw.vaultDocumentId === 'string' ? { vaultDocumentId: raw.vaultDocumentId } : {}),
+    },
   };
 }
 

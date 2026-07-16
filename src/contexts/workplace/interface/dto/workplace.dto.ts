@@ -1,7 +1,8 @@
 // src/contexts/workplace/interface/dto/workplace.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import type { CourseStatus, DocAccess, TrainingStatus } from '../../domain/workplace.types';
+import { Type } from 'class-transformer';
+import { IsArray, IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ArrayMaxSize, ValidateNested, ValidateIf } from 'class-validator';
+import type { CourseStatus, DocAccess, LetterKind, TrainingStatus } from '../../domain/workplace.types';
 
 const MODERATION_STATUSES: CourseStatus[] = ['Published', 'Rejected'];
 
@@ -99,6 +100,29 @@ export class IssueLetterDto {
   @ApiProperty({ enum: LETTER_MODES }) @IsIn(LETTER_MODES as unknown as string[]) mode!:
     | 'save'
     | 'signature';
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(50000) content?: string;
+}
+
+const LETTER_KINDS: LetterKind[] = ['cover', 'employment_verification', 'promotion', 'probation', 'custom'];
+export class DraftLetterDto {
+  @ApiProperty() @IsString() @IsNotEmpty() employeeId!: string;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(1000) instructions = '';
+  @ApiProperty({ required: false, enum: LETTER_KINDS }) @IsOptional() @IsIn(LETTER_KINDS) kind?: LetterKind;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @IsNotEmpty() templateId?: string;
+}
+
+const COHORT_TYPES = ['all', 'department', 'province', 'manual'] as const;
+export class MassCohortDto {
+  @ApiProperty({ enum: COHORT_TYPES }) @IsIn(COHORT_TYPES as unknown as string[]) type!: 'all' | 'department' | 'province' | 'manual';
+  @ApiProperty({ required: false }) @ValidateIf((o: MassCohortDto) => o.type === 'department' || o.type === 'province') @IsString() @IsNotEmpty() @MaxLength(100) value?: string;
+  @ApiProperty({ required: false, type: [String] }) @ValidateIf((o: MassCohortDto) => o.type === 'manual') @IsArray() @ArrayMaxSize(500) @IsString({ each: true }) employeeIds?: string[];
+}
+export class MassIssueLetterDto {
+  @ApiProperty() @IsString() @IsNotEmpty() templateId!: string;
+  @ApiProperty({ type: MassCohortDto }) @ValidateNested() @Type(() => MassCohortDto) cohort!: MassCohortDto;
+  @ApiProperty({ enum: LETTER_MODES }) @IsIn(LETTER_MODES as unknown as string[]) mode!: 'save' | 'signature';
+  @ApiProperty({ required: false }) @IsOptional() @IsBoolean() personalizeWithAi?: boolean;
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(1000) instructions?: string;
 }
 
 export class AssignTrainingDto {

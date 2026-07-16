@@ -26,6 +26,8 @@ import {
   DeleteLetterTemplateCommand,
   GetLetterTemplatesQuery,
   IssueLetterCommand,
+  DraftLetterCommand,
+  CreateMassLetterRunCommand,
   UpdateLetterTemplateCommand,
 } from '../application/letters.handlers';
 import { DeleteVaultDocumentCommand, GetVaultDocumentFileQuery, UploadVaultDocumentCommand } from '../application/documents.handlers';
@@ -33,6 +35,8 @@ import {
   AssignTrainingDto,
   CreateCourseDto,
   IssueLetterDto,
+  DraftLetterDto,
+  MassIssueLetterDto,
   LetterTemplateDto,
   PeerCourseDto,
   UpdateAssignmentDto,
@@ -125,8 +129,21 @@ export class WorkplaceController {
   /** File a generated letter into the employee's vault (save / e-signature). */
   @Post('letters/issue')
   @Roles('HR_ADMIN', 'MANAGER')
-  issueLetter(@Body() body: IssueLetterDto) {
-    return this.commands.execute(new IssueLetterCommand(body));
+  issueLetter(@Body() body: IssueLetterDto, @ActorCtx() actor: ActorContext) {
+    return this.commands.execute(new IssueLetterCommand(body, actor));
+  }
+
+  @Post('letters/draft')
+  @Roles('HR_ADMIN', 'MANAGER')
+  draftLetter(@Body() body: DraftLetterDto, @ActorCtx() actor: ActorContext) {
+    return this.commands.execute(new DraftLetterCommand(body, actor));
+  }
+
+  /** Queues drafts for review; it deliberately does not issue vault documents. */
+  @Post('letters/mass-issue')
+  @Roles('HR_ADMIN')
+  massIssue(@Body() body: MassIssueLetterDto, @ActorCtx() actor: ActorContext) {
+    return this.commands.execute(new CreateMassLetterRunCommand(body as never, actor));
   }
 
   /* ------------------------- Training catalog ------------------------ */

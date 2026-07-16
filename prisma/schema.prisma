@@ -730,15 +730,16 @@ enum AgentStatus {
 }
 
 model AgentRun {
-  id        String      @id @default(cuid())
+  id        String         @id @default(cuid())
   intent    String
   status    AgentStatus
-  progress  Int         @default(0)
-  affected  Int         @default(0)
+  progress  Int            @default(0)
+  affected  Int            @default(0)
   summary   String
   time      String
   companyId String?
-  company   Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items     AgentRunItem[]
 
   @@index([companyId])
 }
@@ -1050,6 +1051,85 @@ model CalcRule {
 
 // Tenant root. Every table above carries companyId -> Company; deleting a
 // Company cascades to all of its data.
+/**
+ * --------------------------- AI agent ------------------------------
+ */
+
+model ModerationEvent {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  stage     String
+  category  String
+  inputHash String
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+}
+
+model PolicyDocument {
+  id         String        @id @default(cuid())
+  companyId  String
+  company    Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title      String
+  sourceType String
+  status     String
+  uploadedAt DateTime      @default(now())
+  chunks     PolicyChunk[]
+
+  @@index([companyId])
+}
+
+model PolicyChunk {
+  id         String         @id @default(cuid())
+  documentId String
+  document   PolicyDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  companyId  String
+  ordinal    Int
+  heading    String?
+  text       String
+  embedding  Float[]
+
+  @@index([companyId])
+}
+
+model Conversation {
+  id        String        @id @default(cuid())
+  companyId String
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String
+  title     String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  messages  ChatMessage[]
+
+  @@index([companyId, userId])
+}
+
+model ChatMessage {
+  id              String       @id @default(cuid())
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role            String
+  content         String
+  blockedCategory String?
+  createdAt       DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+model AgentRunItem {
+  id         String   @id @default(cuid())
+  runId      String
+  run        AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employeeId String
+  payload    Json
+  status     String
+
+  @@index([runId])
+}
+
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -1096,4 +1176,7 @@ model Company {
   kudos                 Kudos[]
   letterTemplate        LetterTemplate[]
   calcRule              CalcRule[]
+  moderationEvent       ModerationEvent[]
+  policyDocument        PolicyDocument[]
+  conversation          Conversation[]
 }
