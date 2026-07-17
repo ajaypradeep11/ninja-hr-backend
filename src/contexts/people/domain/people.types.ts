@@ -22,6 +22,7 @@ export interface Employee {
   /** ISO date YYYY-MM-DD — blanked for non-HR viewers when birthdayPrivate. */
   birthDate: string;
   manager?: string;
+  managerId?: string;
   status: EmployeeStatus;
   salary: number;
   avatar?: string;
@@ -73,6 +74,8 @@ export interface EmployeeDetail extends Employee {
   hasBanking: boolean;
   emergencyContacts: EmergencyContact[];
   documents: EmployeeDocumentRef[];
+  /** Direct reports — the reverse side of the manager relation. */
+  reportees?: { id: string; name: string; title: string }[];
 }
 
 /** Manual HR-created profile — for hires made outside the recruiting/onboarding flows. */
@@ -90,6 +93,7 @@ export interface CreateEmployeeInput {
   preferredName?: string;
   phone?: string;
   manager?: string;
+  managerId?: string;
 }
 
 /** HRIS fields an HR user may edit (raw sensitive values accepted here). */
@@ -101,6 +105,7 @@ export interface UpdateEmployeeInput {
   title?: string;
   department?: string;
   manager?: string;
+  managerId?: string;
   status?: EmployeeStatus;
   salary?: number;
   employeeNumber?: string;

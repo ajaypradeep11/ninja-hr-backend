@@ -46,6 +46,7 @@ export class PeopleRepository {
     const rows = await this.prisma.employee.findMany({
       where: { status: { not: 'PRE_HIRE' } },
       orderBy: { name: 'asc' },
+      include: { manager: { select: { id: true, name: true } } },
     });
     return rows.map((r) => this.scrubForViewer(rowToEmployee(r), viewerIsHr));
   }
@@ -64,6 +65,8 @@ export class PeopleRepository {
         emergencyContacts: { orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }] },
         // omit the file binary — detail reads only need metadata + hasFile
         documents: { orderBy: { uploaded: 'desc' }, omit: { data: true } },
+        manager: { select: { id: true, name: true } },
+        reportees: { select: { id: true, name: true, title: true }, orderBy: { name: 'asc' } },
       },
     });
     if (!row) throw new NotFoundException(`Employee ${id} not found`);

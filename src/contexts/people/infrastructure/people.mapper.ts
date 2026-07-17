@@ -59,7 +59,11 @@ export function rowToEmployee(row: any): Employee {
     hireDate: iso(row.hireDate),
     birthDate: iso(row.birthDate),
     birthdayPrivate: row.birthdayPrivate ?? false,
-    manager: row.manager ?? undefined,
+    // The NAME, derived from the joined relation — `manager` is no longer a
+    // column. Keeps every consumer ({{manager_name}}, mass letters, reports)
+    // working off the same contract while the link itself is by id.
+    manager: row.manager?.name ?? undefined,
+    managerId: row.managerId ?? undefined,
     status: empStatusFromDb[row.status as keyof typeof empStatusFromDb],
     salary: row.salary,
     employeeNumber: row.employeeNumber ?? undefined,
@@ -133,5 +137,6 @@ export function rowToEmployeeDetail(row: any): EmployeeDetail {
         uploaded: iso(d.uploaded),
       }),
     ),
+    reportees: row.reportees ?? [],
   };
 }
