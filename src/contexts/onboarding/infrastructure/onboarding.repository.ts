@@ -415,7 +415,14 @@ export class OnboardingRepository {
   async publishVerifiedDocsToVault(caseId: string): Promise<number> {
     const row = await this.prisma.onboardingCase.findUnique({
       where: { id: caseId },
-      select: { name: true, employeeId: true, documents: { select: { name: true, type: true, status: true } } },
+      select: {
+        name: true,
+        employeeId: true,
+        // `data` on purpose: the vault copy has to carry the FILE, not just a
+        // row about it. Metadata-only copies render as "No file" with no way to
+        // open them — the document is filed but unreadable.
+        documents: { select: { name: true, type: true, status: true, mimeType: true, size: true, data: true } },
+      },
     });
     if (!row) return 0;
     // By LINK first, name only as the legacy fallback: the record carries the
@@ -444,6 +451,11 @@ export class OnboardingRepository {
           access: 'EMPLOYEE',
           uploaded: new Date(),
           employeeId: emp.id,
+          // The file itself travels with the copy — `hasFile` is derived from
+          // mimeType, and it gates every View/Download affordance on the record.
+          mimeType: d.mimeType,
+          size: d.size,
+          data: d.data,
         },
       });
     }

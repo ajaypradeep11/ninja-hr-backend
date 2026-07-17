@@ -126,9 +126,9 @@ export class OnboardingController {
     );
   }
 
-  /** Download an uploaded preboarding file (HR verification). HR-only: these
-   * are new hires' SIN/banking documents, so this must never be reachable by
-   * a plain employee guessing case/doc ids. */
+  /** Serve an uploaded preboarding file (HR verification). HR-only: these are
+   * new hires' SIN/banking documents, so this must never be reachable by a
+   * plain employee guessing case/doc ids. */
   @Get('cases/:id/documents/:docId/file')
   @Roles('HR_ADMIN')
   async downloadDocument(
@@ -142,9 +142,15 @@ export class OnboardingController {
     const ascii = file.name.replace(/"/g, '').replace(/[^\x20-\x7E]/g, '-');
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // `inline`, mirroring the vault endpoint: HR verifies these by LOOKING at
+    // them, and `attachment` forced a download-and-open round trip for every
+    // document on every case. Safe to render in-tab because uploads are
+    // restricted to PDF/PNG/JPEG (UploadCaseDocumentDto) — no HTML or SVG — and
+    // nosniff stops the browser second-guessing that. The UI's Download control
+    // still saves via the anchor's `download` attribute.
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+      `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
     );
     res.send(file.data);
   }
