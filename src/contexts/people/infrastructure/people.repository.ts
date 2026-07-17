@@ -52,7 +52,11 @@ export class PeopleRepository {
   }
 
   async getEmployeeByName(name: string, viewerIsHr = false): Promise<Employee | null> {
-    const rows = await this.prisma.employee.findMany({ where: { name }, take: 1 });
+    const rows = await this.prisma.employee.findMany({
+      where: { name },
+      take: 1,
+      include: { manager: { select: { id: true, name: true } } },
+    });
     return rows.length ? this.scrubForViewer(rowToEmployee(rows[0]), viewerIsHr) : null;
   }
 

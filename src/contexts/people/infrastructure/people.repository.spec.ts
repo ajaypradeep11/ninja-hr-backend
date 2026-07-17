@@ -79,6 +79,36 @@ describe('PeopleRepository.updateEmployee date sanity', () => {
   });
 });
 
+describe('PeopleRepository.getEmployeeByName', () => {
+  it('includes the manager relation, so the returned employee carries the manager NAME (not silently dropped)', async () => {
+    const row = {
+      ...ROW,
+      managerId: 'm1',
+      manager: { id: 'm1', name: 'Grace Hopper' },
+    };
+    const prisma = {
+      employee: {
+        findMany: jest.fn().mockResolvedValue([row]),
+      },
+    };
+    const repo = new PeopleRepository(prisma as unknown as TenantPrismaService);
+
+    const result = await repo.getEmployeeByName('Jane Doe', true);
+
+    // The query must actually join the relation — without `include`, Prisma
+    // never populates `row.manager`, and the mapper silently returns undefined
+    // for every employee even when they do have a manager.
+    expect(prisma.employee.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          manager: expect.objectContaining({ select: expect.objectContaining({ name: true }) }),
+        }),
+      }),
+    );
+    expect(result?.manager).toBe('Grace Hopper');
+  });
+});
+
 describe('PeopleRepository.createEmployee (manual add)', () => {
   const input = {
     name: 'New Hire',
