@@ -15,6 +15,7 @@ import { OffboardingModule } from './contexts/offboarding/offboarding.module';
 import { WorkplaceModule } from './contexts/workplace/workplace.module';
 import { PlatformModule } from './contexts/platform/platform.module';
 import { PlatformAdminModule } from './contexts/platform-admin/platform-admin.module';
+import { ToolLibraryModule } from './contexts/tool-library/tool-library.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { PlatformAdminModule } from './contexts/platform-admin/platform-admin.mo
     WorkplaceModule,
     PlatformModule,
     PlatformAdminModule,
+    ToolLibraryModule,
   ],
   controllers: [HealthController],
   providers: [

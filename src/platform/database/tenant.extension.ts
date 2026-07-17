@@ -1,8 +1,10 @@
 import { TenantContext } from './tenant-context';
 
-// The tenant root itself carries no companyId and is never scoped. Every other
-// model is tenant-owned and must be scoped.
-const UNSCOPED_MODELS = new Set(['Company']);
+// The tenant root itself carries no companyId and is never scoped. AiTool is
+// the global Tool Library catalog (product-defined, identical for every
+// tenant) — per-tenant tool state lives in CompanyToolSetting/ToolGrant,
+// which ARE scoped. Every other model is tenant-owned and must be scoped.
+const UNSCOPED_MODELS = new Set(['Company', 'AiTool']);
 
 /**
  * Prisma client extension that enforces tenant isolation using the active

@@ -192,6 +192,7 @@ model User {
   createdAt   DateTime @default(now())
   companyId   String?
   company     Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  toolGrants  ToolGrant[]
 
   @@index([companyId])
 }
@@ -1152,6 +1153,76 @@ model AgentRunItem {
   @@index([runId])
 }
 
+/**
+ * --------------------------- Tool Library ---------------------------
+ * Premium AI tool add-on. AiTool is the GLOBAL product catalog (no
+ * companyId — synced from the code catalog at boot, same rows for every
+ * tenant). Per-tenant state lives in CompanyToolSetting (company-wide
+ * enable/disable, HR_ADMIN only) and ToolGrant (per-user access for
+ * non-admin roles).
+ */
+
+enum ToolKind {
+  /// Prompt-driven agent executed through the guarded LLM pipeline.
+  PROMPT
+  /// Pre-existing Intelligence feature; `href` points at its route.
+  BUILTIN
+}
+
+model AiTool {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  category     String
+  description  String
+  kind         ToolKind @default(PROMPT)
+  /// Agent instruction. Empty for BUILTIN tools.
+  systemPrompt String   @default("")
+  /// Input field schema: [{ key, label, type, placeholder?, required?, options? }]
+  inputs       Json     @default("[]")
+  /// Modules this tool surfaces in as an in-context enhancement
+  /// (e.g. "recruitment", "onboarding", "offboarding", "performance").
+  surfaces     String[] @default([])
+  /// BUILTIN only: route of the existing feature.
+  href         String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  companySettings CompanyToolSetting[]
+  grants          ToolGrant[]
+}
+
+/// Company-wide switch. No row = enabled (tools ship on for the tenant).
+model CompanyToolSetting {
+  id        String   @id @default(cuid())
+  toolId    String
+  tool      AiTool   @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, toolId])
+  @@index([companyId])
+}
+
+/// Per-user access for non-HR_ADMIN roles (HR_ADMIN implicitly has all tools).
+model ToolGrant {
+  id        String   @id @default(cuid())
+  toolId    String
+  tool      AiTool   @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, toolId, userId])
+  @@index([companyId])
+  @@index([userId])
+}
+
 model Company {
   id        String   @id @default(cuid())
   name      String
@@ -1201,4 +1272,6 @@ model Company {
   moderationEvent       ModerationEvent[]
   policyDocument        PolicyDocument[]
   conversation          Conversation[]
+  companyToolSetting    CompanyToolSetting[]
+  toolGrant             ToolGrant[]
 }
