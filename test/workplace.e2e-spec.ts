@@ -2,17 +2,21 @@
 // HR-only (seeded by db:seed), and course CRUD round-trips cleanly.
 import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
-import { createE2eApp, fetchSeededUsers, KEY, SeededUsers } from './e2e-utils';
+import { createE2eApp, fetchSeededUsers, KEY, SEED_COMPANY_ID, SeededUsers } from './e2e-utils';
+import { PrismaService } from '../src/platform/database/prisma.service';
 
 describe('Workplace (e2e)', () => {
   let app: INestApplication;
+  let prisma: PrismaService;
   let users: SeededUsers;
   let courseId: string | undefined;
+  const suffix = Date.now().toString(36);
 
   const as = (userId: string) => ({ 'x-internal-key': KEY, 'x-actor-id': userId });
 
   beforeAll(async () => {
     app = await createE2eApp();
+    prisma = app.get(PrismaService);
     users = await fetchSeededUsers(app);
   });
   afterAll(async () => {
@@ -80,4 +84,66 @@ describe('Workplace (e2e)', () => {
       .set(as(users.hr.id))
       .expect(200);
   });
+
+  /**
+   * Manager reach for letter drafting used to be decided by comparing NAMES
+   * (`employee.manager !== actor.employeeName`), so two managers who happen to
+   * share a name were interchangeable: the actual reportee's manager (A) and
+   * an unrelated same-named manager (B) both matched the comparison. Only the
+   * `managerId` relation actually distinguishes them.
+   */
+  it('a same-named manager who does NOT manage the reportee cannot draft their letter', async () => {
+    // The successful draft (A) exercises the full GuardedAgentService path,
+    // which attempts and falls back off an unreachable input classifier —
+    // slower than this suite's other pure-CRUD assertions.
+    const sameName = 'Pat Taylor';
+    const mgrA = await prisma.employee.create({
+      data: {
+        companyId: SEED_COMPANY_ID, name: sameName, title: 'Manager', department: 'Engineering',
+        province: 'ON', email: `wl-pat-a-${suffix}@test.com`, hireDate: new Date('2021-01-01'),
+        birthDate: new Date('1985-01-01'), salary: 90000,
+      },
+    });
+    const mgrB = await prisma.employee.create({
+      data: {
+        companyId: SEED_COMPANY_ID, name: sameName, title: 'Manager', department: 'Engineering',
+        province: 'ON', email: `wl-pat-b-${suffix}@test.com`, hireDate: new Date('2021-01-01'),
+        birthDate: new Date('1985-01-01'), salary: 90000,
+      },
+    });
+    const reportee = await prisma.employee.create({
+      data: {
+        companyId: SEED_COMPANY_ID, name: 'Reportee WL', title: 'Engineer', department: 'Engineering',
+        province: 'ON', email: `wl-report-${suffix}@test.com`, hireDate: new Date('2022-01-01'),
+        birthDate: new Date('1990-01-01'), salary: 80000, managerId: mgrA.id,
+      },
+    });
+    const userA = await prisma.user.create({ data: { companyId: SEED_COMPANY_ID, employeeId: mgrA.id, role: 'MANAGER' } });
+    const userB = await prisma.user.create({ data: { companyId: SEED_COMPANY_ID, employeeId: mgrB.id, role: 'MANAGER' } });
+    // Public contract check: the letter payload still carries the manager's
+    // NAME (only the internal access check moved to ids) — see letter-merge.ts
+    // {{manager_name}} / workplace.types.ts LetterMergeEmployee.manager.
+    const template = await prisma.letterTemplate.create({
+      data: {
+        companyId: SEED_COMPANY_ID, name: `WL manager-name check ${suffix}`,
+        category: 'General', body: 'Manager on file: {{manager_name}}',
+      },
+    });
+
+    // A actually manages the reportee — must succeed, and the drafted text
+    // must carry A's NAME (not an id, not "[object Object]").
+    const draftRes = await request(app.getHttpServer())
+      .post('/api/v1/workplace/letters/draft')
+      .set(as(userA.id))
+      .send({ employeeId: reportee.id, templateId: template.id })
+      .expect(201);
+    expect((draftRes.body as { text: string }).text).toContain(sameName);
+
+    // B shares A's name but manages nobody here — must 404, not succeed.
+    await request(app.getHttpServer())
+      .post('/api/v1/workplace/letters/draft')
+      .set(as(userB.id))
+      .send({ employeeId: reportee.id, kind: 'employment_verification' })
+      .expect(404);
+  }, 20000);
 });

@@ -7,7 +7,8 @@ import type { DraftLetterInput, DraftLetterResult, LetterMergeEmployee } from '.
 
 const EMPLOYEE_SELECT = {
   id: true, name: true, title: true, department: true, province: true,
-  hireDate: true, salary: true, manager: true, employeeNumber: true,
+  hireDate: true, salary: true, managerId: true,
+  manager: { select: { name: true } }, employeeNumber: true,
 } as const;
 
 @Injectable()
@@ -24,7 +25,7 @@ export class LetterDraftService {
     const employee = await this.prisma.employee.findUnique({
       where: { id: input.employeeId }, select: EMPLOYEE_SELECT,
     });
-    if (!employee || (actor.role === 'MANAGER' && employee.manager !== actor.employeeName)) {
+    if (!employee || (actor.role === 'MANAGER' && employee.managerId !== actor.employeeId)) {
       throw new NotFoundException('Employee not found');
     }
     const template = input.templateId
@@ -36,14 +37,18 @@ export class LetterDraftService {
       : null;
     if (!company) throw new NotFoundException('Company not found');
 
-    const mergeEmployee = employee as unknown as LetterMergeEmployee;
+    // The letter payload still carries the manager's NAME (public contract:
+    // {{manager_name}} / LetterMergeEmployee.manager: string | null) — only the
+    // access check above moved to ids.
+    const managerName = employee.manager?.name ?? null;
+    const mergeEmployee = { ...employee, manager: managerName } as unknown as LetterMergeEmployee;
     const base = template
       ? renderLetterTemplate(template.body, mergeEmployee, company.name, new Date())
       : fallbackLetter(input.kind, mergeEmployee, company.name, new Date());
     const facts = JSON.stringify({
       name: employee.name, title: employee.title, department: employee.department,
       province: employee.province, hireDate: employee.hireDate.toISOString(),
-      salary: employee.salary, manager: employee.manager, employeeNumber: employee.employeeNumber,
+      salary: employee.salary, manager: managerName, employeeNumber: employee.employeeNumber,
     });
     const result = await this.guarded.ask({
       system:

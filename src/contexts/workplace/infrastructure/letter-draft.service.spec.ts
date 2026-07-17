@@ -1,7 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { LetterDraftService } from './letter-draft.service';
 
-const employee = { id: 'e1', name: 'Avery', title: 'Engineer', department: 'Product', province: 'ON', hireDate: new Date('2024-01-01Z'), salary: 100000, manager: 'Morgan', employeeNumber: 'E1' };
+const employee = { id: 'e1', name: 'Avery', title: 'Engineer', department: 'Product', province: 'ON', hireDate: new Date('2024-01-01Z'), salary: 100000, managerId: 'm1', manager: { name: 'Morgan' }, employeeNumber: 'E1' };
 const actor = { userId: 'u1', employeeId: 'm1', employeeName: 'Morgan', department: 'Product', role: 'MANAGER' as const, realUserId: 'u1', companyId: 'c1' };
 
 describe('LetterDraftService', () => {
@@ -20,7 +20,15 @@ describe('LetterDraftService', () => {
 
   it('hides a non-report', async () => {
     const { service, prisma } = setup();
-    prisma.employee.findUnique.mockResolvedValue({ ...employee, manager: 'Someone else' });
+    prisma.employee.findUnique.mockResolvedValue({ ...employee, managerId: 'someone-else-id', manager: { name: 'Someone else' } });
+    await expect(service.draft({ employeeId: 'e1', instructions: 'Draft' }, actor)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('hides a non-report even when the manager NAME coincidentally matches the actor', async () => {
+    // Identity, not name, decides reach: a different manager with the same
+    // name as the actor must still be rejected.
+    const { service, prisma } = setup();
+    prisma.employee.findUnique.mockResolvedValue({ ...employee, managerId: 'someone-else-id', manager: { name: actor.employeeName } });
     await expect(service.draft({ employeeId: 'e1', instructions: 'Draft' }, actor)).rejects.toBeInstanceOf(NotFoundException);
   });
 

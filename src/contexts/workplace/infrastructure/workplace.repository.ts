@@ -130,7 +130,7 @@ export class WorkplaceRepository {
    *  `signature` mode marks it as awaiting e-signature. */
   async issueLetter(input: IssueLetterInput, actor?: ActorContext): Promise<VaultDocument> {
     const emp = await this.prisma.employee.findUnique({ where: { id: input.employeeId } });
-    if (!emp || (actor?.role === 'MANAGER' && emp.manager !== actor.employeeName)) {
+    if (!emp || (actor?.role === 'MANAGER' && emp.managerId !== actor.employeeId)) {
       throw new NotFoundException('Employee not found');
     }
     const content = input.content === undefined ? undefined : Buffer.from(input.content, 'utf8');

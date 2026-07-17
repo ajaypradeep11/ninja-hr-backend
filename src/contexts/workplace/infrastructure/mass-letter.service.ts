@@ -5,7 +5,10 @@ import { renderLetterTemplate } from '../domain/letter-merge';
 import type { LetterMergeEmployee, MassLetterInput, MassLetterPayload, MassLetterResult } from '../domain/workplace.types';
 import { LetterDraftService } from './letter-draft.service';
 
-const SELECT = { id: true, name: true, title: true, department: true, province: true, hireDate: true, salary: true, manager: true, employeeNumber: true } as const;
+const SELECT = {
+  id: true, name: true, title: true, department: true, province: true, hireDate: true, salary: true,
+  managerId: true, manager: { select: { name: true } }, employeeNumber: true,
+} as const;
 
 export async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const output = new Array<R>(items.length);
@@ -51,7 +54,9 @@ export class MassLetterService {
     if (!company) throw new NotFoundException('Company not found');
 
     const items = await mapWithConcurrency(employees, input.personalizeWithAi ? 3 : employees.length, async (employee) => {
-      const deterministic = renderLetterTemplate(template.body, employee as unknown as LetterMergeEmployee, company.name, new Date());
+      // Public contract: the letter still carries the manager's NAME.
+      const mergeEmployee = { ...employee, manager: employee.manager?.name ?? null } as unknown as LetterMergeEmployee;
+      const deterministic = renderLetterTemplate(template.body, mergeEmployee, company.name, new Date());
       const payload: MassLetterPayload = {
         employeeName: employee.name,
         documentName: `${template.name} — ${employee.name}.txt`, body: deterministic,

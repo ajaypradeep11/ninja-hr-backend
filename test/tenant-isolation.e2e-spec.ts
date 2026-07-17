@@ -142,4 +142,50 @@ describe('Tenant isolation (e2e)', () => {
   // Note: cross-company impersonation is a FIREBASE-lane concern (a verified
   // HR_ADMIN using x-actor-id) and is covered by the ActorGuard unit spec —
   // the trusted internal-key lane used here acts as the named user directly.
+
+  /**
+   * Manager reach used to be decided by comparing NAMES
+   * (`employee.manager !== actor.employeeName`), so a manager could draft a
+   * letter for the record of an identically-named person's reportee — in
+   * another company. The tenant Prisma extension scopes `employee.findUnique`
+   * by company, so this cross-company case is expected to already 404
+   * regardless of the name-vs-id fix (kept as a belt-and-suspenders pin on
+   * that guarantee — see workplace.e2e-spec.ts for the same-company case,
+   * which is where the identity bug actually bites).
+   */
+  it('a same-named manager in another company cannot draft a letter for this one’s reportee', async () => {
+    const sameName = 'Pat Taylor';
+    // Company A: manager + their reportee.
+    const mgrA = await prisma.employee.create({
+      data: {
+        companyId: SEED_COMPANY_ID, name: sameName, title: 'Manager', department: 'Engineering',
+        province: 'ON', email: `pat-a-${suffix}@test.com`, hireDate: new Date('2021-01-01'),
+        birthDate: new Date('1985-01-01'), salary: 90000,
+      },
+    });
+    const reportA = await prisma.employee.create({
+      data: {
+        companyId: SEED_COMPANY_ID, name: 'Reportee A', title: 'Engineer', department: 'Engineering',
+        province: 'ON', email: `rep-a-${suffix}@test.com`, hireDate: new Date('2022-01-01'),
+        birthDate: new Date('1990-01-01'), salary: 80000, managerId: mgrA.id,
+      },
+    });
+    // Company B: a DIFFERENT person with the same name, managing nobody here.
+    const mgrB = await prisma.employee.create({
+      data: {
+        companyId: companyBId, name: sameName, title: 'Manager', department: 'Engineering',
+        province: 'ON', email: `pat-b-${suffix}@test.com`, hireDate: new Date('2021-01-01'),
+        birthDate: new Date('1985-01-01'), salary: 90000,
+      },
+    });
+    const userB = await prisma.user.create({
+      data: { companyId: companyBId, employeeId: mgrB.id, role: 'MANAGER' },
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/workplace/letters/draft')
+      .set(as(userB.id))
+      .send({ employeeId: reportA.id, kind: 'employment_verification' })
+      .expect(404);
+  });
 });
