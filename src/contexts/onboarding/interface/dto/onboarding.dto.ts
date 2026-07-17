@@ -79,9 +79,15 @@ export class NewHireProfileDto {
   /** Keep my birthday private — hidden from team calendars and dashboards. */
   @ApiProperty({ required: false }) @IsOptional() @IsBoolean() birthdayPrivate?: boolean;
 
-  @ApiProperty({ description: '9 digits, no spaces' })
+  /**
+   * Omit to keep the SIN already on file — reads mask it (••• ••• 789), so a
+   * returning employee has nothing to retype and the mask can never be echoed
+   * back as the real value (the digits-only rule below rejects it outright).
+   */
+  @ApiProperty({ required: false, description: '9 digits, no spaces. Omit to keep the value on file.' })
+  @IsOptional()
   @Matches(/^\d{9}$/, { message: 'SIN must be exactly 9 digits (no spaces or dashes)' })
-  sin!: string;
+  sin?: string;
 
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(30) phone!: string;
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(200) addressStreet!: string;
@@ -106,9 +112,11 @@ export class NewHireProfileDto {
   @ApiProperty({ description: '5-digit transit number' })
   @Matches(/^\d{5}$/, { message: 'Transit number is 5 digits' })
   bankTransit!: string;
-  @ApiProperty({ description: '7-12 digit account number' })
+  /** Omit to keep the account number already on file (masked on read). */
+  @ApiProperty({ required: false, description: '7-12 digits. Omit to keep the value on file.' })
+  @IsOptional()
   @Matches(/^\d{7,12}$/, { message: 'Account number is 7-12 digits' })
-  bankAccount!: string;
+  bankAccount?: string;
 
   /** Must match the legal name to avoid payroll delays. */
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(200) bankAccountHolder!: string;

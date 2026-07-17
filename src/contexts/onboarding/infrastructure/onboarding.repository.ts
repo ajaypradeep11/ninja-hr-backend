@@ -156,6 +156,21 @@ export class OnboardingRepository {
   }
 
   /** Raw new-hire form payload (incl. SIN/banking) — reads mask via the mapper. */
+  /**
+   * The case's profile UNMASKED, straight off the row. Every other read goes
+   * through the mapper (which masks SIN/banking), so this is the only way to
+   * carry a stored secret forward on re-submit — merging from a mapped read
+   * would write "••• ••• 789" back as the real SIN. Never return this to a
+   * client.
+   */
+  async rawProfile(token: string): Promise<Record<string, unknown> | null> {
+    const row = await this.prisma.onboardingCase.findUnique({
+      where: { token },
+      select: { profile: true },
+    });
+    return (row?.profile as Record<string, unknown> | null) ?? null;
+  }
+
   async saveProfile(token: string, profile: Record<string, unknown>): Promise<void> {
     const updated = await this.prisma.onboardingCase.update({
       where: { token },
