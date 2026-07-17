@@ -101,6 +101,44 @@ describe('Tenant isolation (e2e)', () => {
       .expect(404);
   });
 
+  /**
+   * EMP-NNNN numbers are generated per tenant (max of the company's own + 1),
+   * so a brand-new company's first hire is always EMP-0001 — the same number
+   * the seeded tenant already uses. This regression pins the constraint that
+   * has to allow that: while employeeNumber was globally unique, hiring the
+   * first employee of ANY new workspace blew up on a collision with an
+   * unrelated tenant, which is every new customer's very first hire.
+   */
+  it('lets a second company reuse EMP-0001 (numbers are per-company)', async () => {
+    const takenByA = await prisma.employee.findFirst({
+      where: { companyId: SEED_COMPANY_ID, employeeNumber: { not: null } },
+      orderBy: { employeeNumber: 'asc' },
+      select: { employeeNumber: true },
+    });
+    expect(takenByA?.employeeNumber).toBe('EMP-0001'); // the number B will also want
+
+    const hire = await request(app.getHttpServer())
+      .post('/api/v1/people/employees')
+      .set(as(userBId))
+      .send({
+        name: 'Beta First Hire',
+        title: 'Engineer',
+        department: 'Engineering',
+        province: 'ON',
+        email: `beta-hire-${suffix}@test.com`,
+        hireDate: '2026-08-01',
+        birthDate: '1990-05-05',
+      })
+      .expect(201);
+
+    const created = await prisma.employee.findUnique({
+      where: { id: (hire.body as { id: string }).id },
+      select: { employeeNumber: true, companyId: true },
+    });
+    expect(created?.companyId).toBe(companyBId);
+    expect(created?.employeeNumber).toBe('EMP-0001'); // same number, different tenant
+  });
+
   // Note: cross-company impersonation is a FIREBASE-lane concern (a verified
   // HR_ADMIN using x-actor-id) and is covered by the ActorGuard unit spec —
   // the trusted internal-key lane used here acts as the named user directly.

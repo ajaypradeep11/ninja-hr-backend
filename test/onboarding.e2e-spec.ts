@@ -10,6 +10,7 @@ import { AppModule } from '../src/app.module';
 import { InternalKeyGuard } from '../src/platform/auth/internal-key.guard';
 import { FirebaseAdminService } from '../src/platform/auth/firebase-admin.service';
 import { SEED_COMPANY_ID } from './e2e-utils';
+import { TenantContext } from '../src/platform/database/tenant-context';
 
 describe('Onboarding (e2e)', () => {
   let app: INestApplication;
@@ -19,6 +20,10 @@ describe('Onboarding (e2e)', () => {
     key = process.env.INTERNAL_API_KEY ?? 'dev-internal-key';
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = mod.createNestApplication();
+    // Per-request tenant store, as main.ts installs it. Without it ActorGuard's
+    // tenant.set() throws and every request here 500s.
+    const tenant = app.get(TenantContext);
+    app.use((_req: unknown, _res: unknown, next: () => void) => tenant.run(null, () => next()));
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalGuards(new InternalKeyGuard(app.get(Reflector), app.get(FirebaseAdminService)));
@@ -32,6 +37,38 @@ describe('Onboarding (e2e)', () => {
       .expect(201);
   });
   afterAll(async () => { await app.close(); });
+
+  const admin = () => ({ 'x-internal-key': key, 'x-actor-persona': 'admin', 'x-company-id': SEED_COMPANY_ID });
+
+  /** Create a case, clear every activation gate, activate. Returns the case. */
+  async function activateFullCase(name: string, personalEmail: string) {
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/onboarding/cases')
+      .set(admin())
+      .send({ name, province: 'ON', startDate: '2026-08-01', personalEmail })
+      .expect(201);
+    const { id, token, checklist } = created.body as {
+      id: string; token: string; checklist: { id: string; blocking: boolean }[];
+    };
+    for (const formKey of ['personal', 'td1', 'directDeposit', 'benefits', 'handbook']) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/onboarding/cases/by-token/${token}/forms/${formKey}`)
+        .set({ 'x-internal-key': key, 'x-actor-persona': 'employee' })
+        .expect(201);
+    }
+    for (const task of checklist.filter((t) => t.blocking)) {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/onboarding/cases/${id}/tasks/${task.id}`)
+        .set(admin())
+        .send({ status: 'Completed' })
+        .expect(200);
+    }
+    const activated = await request(app.getHttpServer())
+      .post(`/api/v1/onboarding/cases/${id}/activate`)
+      .set(admin());
+    expect([200, 201]).toContain(activated.status);
+    return activated.body as { id: string; status: string };
+  }
 
   it('rejects requests without the internal key', () => {
     return request(app.getHttpServer()).get('/api/v1/onboarding/cases').expect(401);
@@ -78,6 +115,25 @@ describe('Onboarding (e2e)', () => {
       .set('x-company-id', SEED_COMPANY_ID)
       .expect(409);
     expect(activateRes.body.message).toContain('Cannot activate');
+  });
+
+  /**
+   * A second case for someone who already has an Employee row — a rehire, or
+   * simply the same person preboarded twice. Provisioning finds the existing
+   * employee and links the new case to it, which a UNIQUE employeeId turned
+   * into a 500 at activation. One employee may own many cases over time.
+   */
+  it('a rehire — a second case for an existing employee — still activates', async () => {
+    const email = `e2e-rehire-${Date.now().toString(36)}@test.com`;
+    const first = await activateFullCase('E2E Rehire', email);
+    expect(first.status).toBe('Active');
+
+    const second = await activateFullCase('E2E Rehire', email);
+    expect(second.status).toBe('Active');
+
+    // Both cases point at the one employee, and `cases/mine` must serve the
+    // NEWEST — the rehire's case, not the stale original.
+    expect(second.id).not.toBe(first.id);
   });
 
   it('completing forms + blocking tasks unlocks activation, with an audit entry', async () => {

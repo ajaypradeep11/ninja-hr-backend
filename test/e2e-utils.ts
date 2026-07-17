@@ -14,6 +14,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaExceptionFilter } from '../src/platform/database/prisma-exception.filter';
+import { TenantContext } from '../src/platform/database/tenant-context';
 
 export const KEY = process.env.INTERNAL_API_KEY ?? 'dev-internal-key';
 
@@ -27,6 +28,11 @@ export const SEED_COMPANY_ID = 'seed-company';
 export async function createE2eApp(): Promise<INestApplication> {
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = mod.createNestApplication();
+  // Open a fresh AsyncLocalStorage tenant store per request, exactly as main.ts
+  // does. Without it ActorGuard's tenant.set() throws "No tenant store is open"
+  // and EVERY request 500s — the specs below were testing nothing.
+  const tenant = app.get(TenantContext);
+  app.use((_req: unknown, _res: unknown, next: () => void) => tenant.run(null, () => next()));
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   // InternalKeyGuard is registered as the first APP_GUARD in AppModule

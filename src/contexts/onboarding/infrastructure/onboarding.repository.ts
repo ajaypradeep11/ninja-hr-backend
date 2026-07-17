@@ -356,9 +356,17 @@ export class OnboardingRepository {
     return res.count > 0;
   }
 
-  /** The case belonging to one employee — backs the new hire's own portal. */
+  /**
+   * The case belonging to one employee — backs the new hire's own portal.
+   * Newest first: a rehire has more than one case, and the current one is what
+   * their portal must show.
+   */
   async findByEmployeeId(employeeId: string): Promise<OnboardingCase | null> {
-    const row = await this.prisma.onboardingCase.findFirst({ where: { employeeId }, include: INCLUDE });
+    const row = await this.prisma.onboardingCase.findFirst({
+      where: { employeeId },
+      orderBy: { createdAt: 'desc' },
+      include: INCLUDE,
+    });
     return row ? rowToCase(row) : null;
   }
 
