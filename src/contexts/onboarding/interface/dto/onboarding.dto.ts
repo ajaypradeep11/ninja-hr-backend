@@ -3,7 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray, IsBoolean, IsDateString, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, Matches,
-  MaxLength, ValidateNested,
+  MaxLength, MinLength, ValidateNested,
 } from 'class-validator';
 import type { ProvinceCode } from 'src/shared-kernel/province';
 import type { DataAccess, TaskOwner, TaskStatus, WorkEligibilityLabel } from '../../domain/onboarding.types';
@@ -24,6 +24,21 @@ export class NewCaseDto {
 
 export class PolicyDto {
   @ApiProperty() @IsString() policy!: string;
+}
+
+/**
+ * Invite acceptance credential — exactly one of these (enforced in the
+ * handler): `password` when the hire chooses one, `idToken` when they signed in
+ * with Google and the backend must verify who they are before linking.
+ */
+export class AcceptInviteDto {
+  @ApiProperty({ required: false, minLength: 8 })
+  @IsOptional() @IsString() @MinLength(8)
+  password?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional() @IsString() @IsNotEmpty()
+  idToken?: string;
 }
 
 export class TaskStatusDto {

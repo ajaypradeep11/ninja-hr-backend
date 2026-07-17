@@ -24,6 +24,13 @@ export class ActivateHandler implements ICommandHandler<ActivateCommand, Onboard
         await this.repo.publishVerifiedDocsToVault(id);
         return this.repo.findById(id);
       }
+      // …and self-heal an ACTIVE case whose hire is somehow still PRE_HIRE
+      // (accepted the invite, then a failed activation left them out of the
+      // directory). Promoting is the whole point of activation.
+      if (healed && (await this.repo.activateEmployee(healed.employeeId))) {
+        await this.repo.addAudit(id, 'Employee record activated — now listed in the employee directory');
+        return this.repo.findById(id);
+      }
       return c;
     }
     const failed = activationGates(c).filter((g) => !g.ok);
@@ -34,11 +41,15 @@ export class ActivateHandler implements ICommandHandler<ActivateCommand, Onboard
     }
     await this.repo.setStatus(id, 'Active');
     await this.repo.addAudit(id, 'Account activated — payroll set to Active, SSO provisioned');
-    // Activation IS the hire: create the Employee/User so the person shows up
-    // in the directory and can sign in — then file their verified paperwork.
+    // Activation IS the hire: the record usually already exists at PRE_HIRE
+    // (created when the hire accepted their invite), so this promotes them into
+    // the directory; provisioning covers the hire who never accepted — then
+    // file their verified paperwork.
     const provisioned = await this.repo.provisionEmployee(id);
     if (provisioned?.created) {
       await this.repo.addAudit(id, 'Employee record created — now listed in the employee directory');
+    } else if (provisioned && (await this.repo.activateEmployee(provisioned.employeeId))) {
+      await this.repo.addAudit(id, 'Employee record activated — now listed in the employee directory');
     }
     const published = await this.repo.publishVerifiedDocsToVault(id);
     if (published > 0) {

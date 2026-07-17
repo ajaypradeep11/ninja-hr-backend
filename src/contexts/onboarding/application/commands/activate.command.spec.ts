@@ -21,6 +21,7 @@ function makeRepo(c: OnboardingCase = readyCase) {
     audit: [] as string[],
     provisioned: [] as string[],
     published: [] as string[],
+    promoted: [] as string[],
   };
   const repo = {
     findById: async () => c,
@@ -30,10 +31,16 @@ function makeRepo(c: OnboardingCase = readyCase) {
       calls.provisioned.push(id);
       return { created: true, employeeId: 'emp1' };
     },
+    // Default false = the employee was not sitting at PRE_HIRE (nothing to
+    // promote); the tests that care flip this per-case.
+    activateEmployee: async (employeeId: string) => { calls.promoted.push(employeeId); return false; },
     publishVerifiedDocsToVault: async (id: string) => { calls.published.push(id); return 1; },
   };
   return { repo: repo as never, calls };
 }
+
+const AUDIT_CREATED = 'Employee record created — now listed in the employee directory';
+const AUDIT_ACTIVATED = 'Employee record activated — now listed in the employee directory';
 
 describe('ActivateHandler', () => {
   it('activates, provisions the Employee record, then files verified docs', async () => {
@@ -44,14 +51,37 @@ describe('ActivateHandler', () => {
     // the (just-created) employee record.
     expect(calls.provisioned).toEqual(['c1']);
     expect(calls.published).toEqual(['c1']);
-    expect(calls.audit).toContain('Employee record created — now listed in the employee directory');
+    expect(calls.audit).toContain(AUDIT_CREATED);
   });
 
   it('skips the provisioning audit line for an already-existing employee', async () => {
     const { repo, calls } = makeRepo();
     (repo as { provisionEmployee: unknown }).provisionEmployee = async () => ({ created: false, employeeId: 'emp1' });
     await new ActivateHandler(repo).execute(new ActivateCommand('c1'));
-    expect(calls.audit).not.toContain('Employee record created — now listed in the employee directory');
+    expect(calls.audit).not.toContain(AUDIT_CREATED);
+  });
+
+  // The normal path since invite acceptance provisions: the hire already exists
+  // at PRE_HIRE, so activation's job is to promote them into the directory.
+  it('promotes the PRE_HIRE employee the invite acceptance created', async () => {
+    const { repo, calls } = makeRepo();
+    (repo as { provisionEmployee: unknown }).provisionEmployee = async () => ({ created: false, employeeId: 'emp1' });
+    (repo as { activateEmployee: unknown }).activateEmployee = async (id: string) => {
+      calls.promoted.push(id);
+      return true; // was PRE_HIRE
+    };
+    await new ActivateHandler(repo).execute(new ActivateCommand('c1'));
+    expect(calls.setStatus).toEqual([['c1', 'Active']]);
+    expect(calls.promoted).toEqual(['emp1']);
+    expect(calls.audit).toContain(AUDIT_ACTIVATED);
+    expect(calls.published).toEqual(['c1']);
+  });
+
+  it('does not log an activation line when the employee was already ACTIVE', async () => {
+    const { repo, calls } = makeRepo();
+    (repo as { provisionEmployee: unknown }).provisionEmployee = async () => ({ created: false, employeeId: 'emp1' });
+    await new ActivateHandler(repo).execute(new ActivateCommand('c1'));
+    expect(calls.audit).not.toContain(AUDIT_ACTIVATED);
   });
 
   it('blocks activation (409) when a gate fails — nothing is provisioned', async () => {
@@ -81,6 +111,6 @@ describe('ActivateHandler', () => {
     expect(calls.setStatus).toEqual([]); // status untouched
     expect(calls.provisioned).toEqual(['c1']);
     expect(calls.published).toEqual(['c1']);
-    expect(calls.audit).toContain('Employee record created — now listed in the employee directory');
+    expect(calls.audit).toContain(AUDIT_CREATED);
   });
 });

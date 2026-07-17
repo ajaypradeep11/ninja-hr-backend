@@ -34,8 +34,19 @@ export class PeopleRepository {
     };
   }
 
+  /**
+   * The employee directory. PRE_HIRE is excluded: a new hire gets their record
+   * the moment they accept their invite (so they can sign in and work through
+   * preboarding), but activation is what hires them — that is the point at
+   * which they join the directory, and the activation audit trail says so.
+   * Detail lookups (by id / by name) stay unfiltered so a pre-hire can still
+   * load their own profile.
+   */
   async getEmployees(viewerIsHr = false): Promise<Employee[]> {
-    const rows = await this.prisma.employee.findMany({ orderBy: { name: 'asc' } });
+    const rows = await this.prisma.employee.findMany({
+      where: { status: { not: 'PRE_HIRE' } },
+      orderBy: { name: 'asc' },
+    });
     return rows.map((r) => this.scrubForViewer(rowToEmployee(r), viewerIsHr));
   }
 

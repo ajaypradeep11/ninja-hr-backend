@@ -4,11 +4,14 @@ import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { Roles } from 'src/platform/auth/roles.decorator';
+import { ActorCtx, type ActorContext } from 'src/platform/auth/actor-context';
 import { TenantResolver } from 'src/platform/database/tenant-resolver.service';
 import { ListCasesQuery } from '../application/queries/list-cases.query';
 import { GetPipelineQuery } from '../application/queries/get-pipeline.query';
 import { GetCaseByTokenQuery } from '../application/queries/get-case-by-token.query';
+import { GetMyCaseQuery } from '../application/queries/get-my-case.query';
 import { CreateCaseCommand } from '../application/commands/create-case.command';
+import { AcceptInviteCommand } from '../application/commands/accept-invite.command';
 import { MarkFormCommand } from '../application/commands/mark-form.command';
 import { AddConsentCommand } from '../application/commands/add-consent.command';
 import { FinalizeSubmissionCommand } from '../application/commands/finalize-submission.command';
@@ -25,7 +28,7 @@ import { GetCaseDocumentFileQuery, type CaseDocumentFile } from '../application/
 import { SetTaskAssigneeCommand } from '../application/commands/set-task-assignee.command';
 import {
   NewCaseDto, NewHireProfileDto, PolicyDto, TaskStatusDto, ChecklistDto, UploadCaseDocumentDto,
-  SetTaskAssigneeDto, RejectDocumentDto,
+  SetTaskAssigneeDto, RejectDocumentDto, AcceptInviteDto,
 } from './dto/onboarding.dto';
 import type { FormFlags } from '../domain/onboarding.types';
 
@@ -53,6 +56,17 @@ export class OnboardingController {
     return this.queries.execute(new GetPipelineQuery());
   }
 
+  /**
+   * The caller's OWN case (null when they have none). Deliberately ungated by
+   * role: `cases` above is HR-only, so without this a new hire could not read
+   * the very case they are working through. Scoped to the actor's employeeId.
+   */
+  @Get('cases/mine')
+  myCase(@ActorCtx() actor: ActorContext) {
+    if (!actor.employeeId) return null; // trusted-lane persona: no employee identity
+    return this.queries.execute(new GetMyCaseQuery(actor.employeeId));
+  }
+
   @Post('cases')
   @Roles('HR_ADMIN')
   createCase(@Body() body: NewCaseDto) {
@@ -68,6 +82,19 @@ export class OnboardingController {
     // Returns null (not 404) for an unknown/expired token, per the read contract.
     return this.tenantResolver.runByCaseTokenOrNull(token, () =>
       this.queries.execute(new GetCaseByTokenQuery(token)),
+    );
+  }
+
+  /**
+   * Invite acceptance: the hire sets a password (or presents a Google ID
+   * token), and we hand back the address to sign in with. Token-scoped like
+   * its siblings — the hire has no session yet; this call is what creates the
+   * identity that gives them one.
+   */
+  @Post('cases/by-token/:token/accept')
+  acceptInvite(@Param('token') token: string, @Body() body: AcceptInviteDto) {
+    return this.tenantResolver.runByCaseToken(token, () =>
+      this.commands.execute(new AcceptInviteCommand(token, { password: body.password, idToken: body.idToken })),
     );
   }
 

@@ -6,7 +6,9 @@ import { OnboardingRepository } from './infrastructure/onboarding.repository';
 import { ListCasesHandler } from './application/queries/list-cases.query';
 import { GetPipelineHandler } from './application/queries/get-pipeline.query';
 import { GetCaseByTokenHandler } from './application/queries/get-case-by-token.query';
+import { GetMyCaseHandler } from './application/queries/get-my-case.query';
 import { CreateCaseHandler } from './application/commands/create-case.command';
+import { AcceptInviteHandler } from './application/commands/accept-invite.command';
 import { MarkFormHandler } from './application/commands/mark-form.command';
 import { AddConsentHandler } from './application/commands/add-consent.command';
 import { FinalizeSubmissionHandler } from './application/commands/finalize-submission.command';
@@ -27,8 +29,9 @@ import { GetCaseDocumentFileHandler } from './application/queries/get-case-docum
   controllers: [OnboardingController],
   providers: [
     OnboardingRepository,
-    ListCasesHandler, GetPipelineHandler, GetCaseByTokenHandler,
-    CreateCaseHandler, MarkFormHandler, SubmitProfileHandler, UploadCaseDocumentHandler,
+    ListCasesHandler, GetPipelineHandler, GetCaseByTokenHandler, GetMyCaseHandler,
+    CreateCaseHandler, AcceptInviteHandler,
+    MarkFormHandler, SubmitProfileHandler, UploadCaseDocumentHandler,
     GetCaseDocumentFileHandler, AddConsentHandler, FinalizeSubmissionHandler,
     SetChecklistHandler, SetTaskStatusHandler, DeleteTaskHandler, SetTaskAssigneeHandler,
     VerifyDocumentHandler, RejectDocumentHandler, TogglePolicyHandler, ActivateHandler,

@@ -940,7 +940,7 @@ export class RecruitmentRepository {
     //     the hiring manager) see submitted cards immediately.
     const viewerIsPanelist =
       !!actor?.employeeId &&
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (row.requisition?.hiringTeam ?? []).some(
         (m: any) => m.employeeId === actor.employeeId && m.isPanelMember,
       );

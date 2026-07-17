@@ -98,6 +98,15 @@ export class FirebaseAdminService {
     await this.auth().updateUser(uid, { password });
   }
 
+  /**
+   * Mark an address verified. Only call this where possession of the inbox is
+   * already proven out-of-band (accepting an emailed invite token) — ActorGuard
+   * treats a verified email as grounds to auto-link an account.
+   */
+  async markEmailVerified(uid: string): Promise<void> {
+    await this.auth().updateUser(uid, { emailVerified: true });
+  }
+
   /** Remove a Firebase user — compensating action when signup fails mid-way. */
   async deleteUser(uid: string): Promise<void> {
     if (!this.app) return;

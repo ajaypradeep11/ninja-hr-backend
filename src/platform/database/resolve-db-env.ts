@@ -16,12 +16,12 @@ const selected = live ? process.env.LIVE_DATABASE_URL : process.env.LOCAL_DATABA
 if (selected) {
   process.env.DATABASE_URL = selected;
   process.env.DIRECT_URL = selected;
-  // eslint-disable-next-line no-console
+   
   console.log(`[db] Postgres target: ${live ? 'LIVE' : 'LOCAL'} (DB_LIVE=${process.env.DB_LIVE}).`);
 } else if (process.env.DB_LIVE !== undefined) {
   // Flag set but the matching URL is missing — warn loudly rather than silently
   // connecting to whatever DATABASE_URL happens to hold.
-  // eslint-disable-next-line no-console
+   
   console.warn(
     `[db] DB_LIVE=${process.env.DB_LIVE} but ${
       live ? 'LIVE_DATABASE_URL' : 'LOCAL_DATABASE_URL'

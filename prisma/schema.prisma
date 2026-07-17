@@ -121,6 +121,7 @@ model Employee {
   documents           VaultDocument[]
   user                User?
   emergencyContacts   EmergencyContact[]
+  onboardingCase      OnboardingCase?
   trainingAssignments TrainingAssignment[]
   requisitionsCreated Requisition[]         @relation("RequisitionCreator")
   approvals           RequisitionApproval[] @relation("RequisitionApprover")
@@ -831,6 +832,12 @@ model OnboardingCase {
   documents        CaseDocument[]
   consent          ConsentEntry[]
   auditLog         AuditEntry[]
+  /// The Employee this case provisioned — set the moment the hire accepts their
+  /// invite (status PRE_HIRE), long before HR activates them. Identity, not
+  /// email, is what makes provisioning idempotent and what lets the hire's own
+  /// session find their case (`GET onboarding/cases/mine`).
+  employeeId       String?         @unique
+  employee         Employee?       @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   companyId        String?
   company          Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
 

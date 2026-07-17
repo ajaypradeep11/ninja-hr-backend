@@ -249,17 +249,31 @@ export class OnboardingRepository {
   }
 
   /**
-   * Activation creates the HRIS record: the onboarding case (plus the new
-   * hire's submitted profile) becomes an ACTIVE Employee + EMPLOYEE User, so
-   * the person appears in the directory and can sign in (ActorGuard links
-   * their Firebase identity by verified-email match on first login).
-   * Idempotent: re-activation replays return the existing employee.
+   * Creates the HRIS record from the case (plus whatever the new hire has
+   * submitted so far): an Employee + EMPLOYEE User.
+   *
+   * Called twice in a case's life, hence `status`/`firebaseUid`:
+   *  - invite acceptance → PRE_HIRE + the hire's Firebase uid, so they can sign
+   *    in and work through preboarding without showing up in the directory
+   *    (`people.repository` lists ACTIVE/ON_STATUTORY_LEAVE only);
+   *  - activation → promotes that same row to ACTIVE (see `activateEmployee`).
+   *
+   * Idempotent by IDENTITY: the case remembers the employee it provisioned, so
+   * replays never double-create. The email lookup below is the legacy
+   * self-heal path for cases activated before `employeeId` existed.
    */
-  async provisionEmployee(caseId: string): Promise<{ created: boolean; employeeId: string } | null> {
+  async provisionEmployee(
+    caseId: string,
+    opts: { status?: 'PRE_HIRE' | 'ACTIVE'; firebaseUid?: string } = {},
+  ): Promise<{ created: boolean; employeeId: string } | null> {
     const row = await this.prisma.onboardingCase.findUnique({ where: { id: caseId } });
     if (!row) return null;
+    if (row.employeeId) return { created: false, employeeId: row.employeeId };
     const existing = await this.prisma.employee.findFirst({ where: { email: row.personalEmail } });
-    if (existing) return { created: false, employeeId: existing.id };
+    if (existing) {
+      await this.linkEmployee(caseId, existing.id);
+      return { created: false, employeeId: existing.id };
+    }
 
     // The preboarding profile is optional shape-wise — activation gates require
     // the forms done, but stay defensive about individual fields.
@@ -286,7 +300,7 @@ export class OnboardingRepository {
         hireDate: row.startDate,
         birthDate: p.dateOfBirth ? new Date(p.dateOfBirth) : new Date('1970-01-01T00:00:00.000Z'),
         birthdayPrivate: p.birthdayPrivate ?? false,
-        status: 'ACTIVE',
+        status: opts.status ?? 'ACTIVE',
         salary: 0, // compensation is set by HR post-hire; the wizard never collects it
         employeeNumber: await this.nextEmployeeNumber(),
         phone: p.phone || null,
@@ -303,7 +317,13 @@ export class OnboardingRepository {
       },
     });
     // Top-level creates on purpose (nested writes bypass the tenant stamping).
-    await this.prisma.user.create({ data: { employeeId: employee.id, role: 'EMPLOYEE' } });
+    // firebaseUid is stamped here when the hire accepted the invite themselves:
+    // ActorGuard resolves them by uid, which is what makes their first
+    // authenticated request work before any email is verified.
+    await this.prisma.user.create({
+      data: { employeeId: employee.id, role: 'EMPLOYEE', firebaseUid: opts.firebaseUid ?? null },
+    });
+    await this.linkEmployee(caseId, employee.id);
     if (p.emergencyName) {
       await this.prisma.emergencyContact.create({
         data: {
@@ -315,6 +335,31 @@ export class OnboardingRepository {
       });
     }
     return { created: true, employeeId: employee.id };
+  }
+
+  /** Point the case at the employee it provisioned (see `provisionEmployee`). */
+  private async linkEmployee(caseId: string, employeeId: string): Promise<void> {
+    await this.prisma.onboardingCase.update({ where: { id: caseId }, data: { employeeId } });
+  }
+
+  /**
+   * Activation promotes the hire out of PRE_HIRE — this is the moment they
+   * enter the employee directory. A no-op for anyone already ACTIVE, and it
+   * deliberately touches only PRE_HIRE rows so re-activating a case can never
+   * resurrect someone who has since been offboarded or terminated.
+   */
+  async activateEmployee(employeeId: string): Promise<boolean> {
+    const res = await this.prisma.employee.updateMany({
+      where: { id: employeeId, status: 'PRE_HIRE' },
+      data: { status: 'ACTIVE' },
+    });
+    return res.count > 0;
+  }
+
+  /** The case belonging to one employee — backs the new hire's own portal. */
+  async findByEmployeeId(employeeId: string): Promise<OnboardingCase | null> {
+    const row = await this.prisma.onboardingCase.findFirst({ where: { employeeId }, include: INCLUDE });
+    return row ? rowToCase(row) : null;
   }
 
   /** Next EMP-NNNN directory number (max existing + 1; null on any oddity). */
