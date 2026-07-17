@@ -89,7 +89,11 @@ model Employee {
   birthDate           DateTime
   /// Employee privacy: hide birthday from team calendars/dashboards (HR still sees DOB).
   birthdayPrivate     Boolean               @default(false)
-  manager             String?
+  /// Who this person reports to. A relation, not a name: the name was used for
+  /// access checks, so duplicates leaked and renames silently re-pointed them.
+  managerId           String?
+  manager             Employee?             @relation("Reporting", fields: [managerId], references: [id], onDelete: SetNull)
+  reportees           Employee[]            @relation("Reporting")
   status              EmployeeStatus        @default(ACTIVE)
   salary              Int
   createdAt           DateTime              @default(now())
@@ -146,6 +150,7 @@ model Employee {
 
   @@unique([companyId, employeeNumber])
   @@index([companyId])
+  @@index([managerId])
 }
 
 model EmergencyContact {
