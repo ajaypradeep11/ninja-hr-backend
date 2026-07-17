@@ -92,7 +92,6 @@ export interface CreateEmployeeInput {
   workLocation?: string;
   preferredName?: string;
   phone?: string;
-  manager?: string;
   managerId?: string;
 }
 
@@ -104,8 +103,7 @@ export interface UpdateEmployeeInput {
   birthDate?: string;
   title?: string;
   department?: string;
-  manager?: string;
-  managerId?: string;
+  managerId?: string | null;
   status?: EmployeeStatus;
   salary?: number;
   employeeNumber?: string;

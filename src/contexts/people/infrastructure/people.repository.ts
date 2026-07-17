@@ -16,6 +16,7 @@ import {
   rowToEmployeeDetail,
   workEligibilityToDb,
 } from './people.mapper';
+import { assertNoCycle } from '../domain/reporting';
 
 @Injectable()
 export class PeopleRepository {
@@ -90,6 +91,18 @@ export class PeopleRepository {
     if (input.birthDate && input.hireDate < input.birthDate) {
       throw new BadRequestException('Start date cannot be before the date of birth.');
     }
+    if (input.managerId) {
+      // The employee does not exist yet, so self-management and cycles are
+      // structurally impossible — only the same-company check applies.
+      // Tenant-scoped client: another company's employee simply is not found.
+      const manager = await this.prisma.employee.findUnique({
+        where: { id: input.managerId },
+        select: { id: true },
+      });
+      if (!manager) {
+        throw new BadRequestException('That manager is not an employee of this company.');
+      }
+    }
     let row;
     try {
       row = await this.prisma.employee.create({
@@ -110,7 +123,7 @@ export class PeopleRepository {
           workLocation: input.workLocation?.trim() || null,
           preferredName: input.preferredName?.trim() || null,
           phone: input.phone?.trim() || null,
-          manager: input.manager?.trim() || null,
+          managerId: input.managerId ?? null,
         },
       });
     } catch (e) {
@@ -137,6 +150,36 @@ export class PeopleRepository {
     return `EMP-${String(max + 1).padStart(4, '0')}`;
   }
 
+  /**
+   * Resolve a proposed manager, or throw. The picker only offers in-company
+   * people, but the API must not trust that: a cross-tenant managerId is a
+   * data-isolation breach.
+   */
+  private async assertManagerAssignable(employeeId: string, managerId: string): Promise<void> {
+    if (managerId === employeeId) {
+      throw new BadRequestException('An employee cannot report to themselves.');
+    }
+    // Tenant-scoped client: another company's employee simply is not found.
+    const manager = await this.prisma.employee.findUnique({
+      where: { id: managerId },
+      select: { id: true, managerId: true },
+    });
+    if (!manager) throw new BadRequestException('That manager is not an employee of this company.');
+
+    // Walk upward collecting the proposed chain, then let the domain rule judge.
+    const chain: string[] = [];
+    let cursor: string | null = manager.managerId;
+    while (cursor && !chain.includes(cursor)) {
+      chain.push(cursor);
+      const next: { managerId: string | null } | null = await this.prisma.employee.findUnique({
+        where: { id: cursor },
+        select: { managerId: true },
+      });
+      cursor = next?.managerId ?? null;
+    }
+    assertNoCycle([managerId, ...chain], employeeId);
+  }
+
   async updateEmployee(id: string, input: UpdateEmployeeInput): Promise<EmployeeDetail> {
     const has = <K extends keyof UpdateEmployeeInput>(k: K) => input[k] !== undefined;
     // Sanity check: an employee cannot start work before they were born. Compare
@@ -153,6 +196,7 @@ export class PeopleRepository {
         throw new BadRequestException('Start date cannot be before date of birth');
       }
     }
+    if (input.managerId) await this.assertManagerAssignable(id, input.managerId);
     await this.prisma.employee.update({
       where: { id },
       data: {
@@ -161,7 +205,7 @@ export class PeopleRepository {
         ...(has('birthDate') ? { birthDate: new Date(input.birthDate!) } : {}),
         ...(has('title') ? { title: input.title } : {}),
         ...(has('department') ? { department: input.department } : {}),
-        ...(has('manager') ? { manager: input.manager || null } : {}),
+        ...(has('managerId') ? { managerId: input.managerId || null } : {}),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(has('status') ? { status: empStatusToDb[input.status!] as any } : {}),
         ...(has('salary') ? { salary: input.salary } : {}),

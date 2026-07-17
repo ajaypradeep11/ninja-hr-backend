@@ -11,6 +11,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import type {
   EmployeeStatus,
@@ -38,7 +39,11 @@ export class CreateEmployeeDto {
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) workLocation?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(80) preferredName?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(40) phone?: string;
-  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) manager?: string;
+  /** Who they report to, by id. `null` unassigns. Validated server-side for
+   *  same-company / no-self / no-cycle — the picker cannot be trusted. */
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(40)
+  managerId?: string | null;
 }
 
 export class UpdateEmployeeDto {
@@ -49,7 +54,11 @@ export class UpdateEmployeeDto {
   @ApiProperty({ required: false }) @IsOptional() @IsDateString() birthDate?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) title?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(60) department?: string;
-  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(120) manager?: string;
+  /** Who they report to, by id. `null` unassigns. Validated server-side for
+   *  same-company / no-self / no-cycle — the picker cannot be trusted. */
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(40)
+  managerId?: string | null;
   @ApiProperty({ enum: STATUSES, required: false }) @IsOptional() @IsIn(STATUSES) status?: EmployeeStatus;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) salary?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(20) employeeNumber?: string;
