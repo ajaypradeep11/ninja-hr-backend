@@ -10,6 +10,14 @@ describe('Workplace (e2e)', () => {
   let prisma: PrismaService;
   let users: SeededUsers;
   let courseId: string | undefined;
+  // Same-named-manager test (below) creates two extra Employees + Users and a
+  // LetterTemplate directly in the seeded demo tenant — track their ids so
+  // afterAll can remove them and every run doesn't permanently add two more
+  // managers to the demo company.
+  let patTemplateId: string | undefined;
+  let patReporteeId: string | undefined;
+  let patMgrAId: string | undefined;
+  let patMgrBId: string | undefined;
   const suffix = Date.now().toString(36);
 
   const as = (userId: string) => ({ 'x-internal-key': KEY, 'x-actor-id': userId });
@@ -24,6 +32,21 @@ describe('Workplace (e2e)', () => {
       await request(app.getHttpServer())
         .delete(`/api/v1/workplace/training-courses/${courseId}`)
         .set(as(users.hr.id));
+    }
+    if (patTemplateId) {
+      await prisma.letterTemplate.delete({ where: { id: patTemplateId } });
+    }
+    // Users cascade-delete with their Employee (schema: onDelete: Cascade),
+    // so removing the Employees is enough. Reportee first — it references
+    // mgrA via managerId (onDelete: SetNull would otherwise just null it out).
+    if (patReporteeId) {
+      await prisma.employee.delete({ where: { id: patReporteeId } });
+    }
+    if (patMgrAId) {
+      await prisma.employee.delete({ where: { id: patMgrAId } });
+    }
+    if (patMgrBId) {
+      await prisma.employee.delete({ where: { id: patMgrBId } });
     }
     await app.close();
   });
@@ -118,6 +141,9 @@ describe('Workplace (e2e)', () => {
         birthDate: new Date('1990-01-01'), salary: 80000, managerId: mgrA.id,
       },
     });
+    patMgrAId = mgrA.id;
+    patMgrBId = mgrB.id;
+    patReporteeId = reportee.id;
     const userA = await prisma.user.create({ data: { companyId: SEED_COMPANY_ID, employeeId: mgrA.id, role: 'MANAGER' } });
     const userB = await prisma.user.create({ data: { companyId: SEED_COMPANY_ID, employeeId: mgrB.id, role: 'MANAGER' } });
     // Public contract check: the letter payload still carries the manager's
@@ -129,6 +155,7 @@ describe('Workplace (e2e)', () => {
         category: 'General', body: 'Manager on file: {{manager_name}}',
       },
     });
+    patTemplateId = template.id;
 
     // A actually manages the reportee — must succeed, and the drafted text
     // must carry A's NAME (not an id, not "[object Object]").
@@ -140,10 +167,12 @@ describe('Workplace (e2e)', () => {
     expect((draftRes.body as { text: string }).text).toContain(sameName);
 
     // B shares A's name but manages nobody here — must 404, not succeed.
+    // Body is identical to A's request (same templateId) so the only
+    // variable between the two calls is who is acting.
     await request(app.getHttpServer())
       .post('/api/v1/workplace/letters/draft')
       .set(as(userB.id))
-      .send({ employeeId: reportee.id, kind: 'employment_verification' })
+      .send({ employeeId: reportee.id, templateId: template.id })
       .expect(404);
   }, 20000);
 });

@@ -79,7 +79,7 @@ export class PerformanceRepository {
     const [employees, probationReviews, runs] = await Promise.all([
       this.prisma.employee.findMany({
         where: { status: 'ACTIVE' },
-        select: { id: true, name: true, manager: true, hireDate: true },
+        select: { id: true, name: true, manager: { select: { name: true } }, hireDate: true },
       }),
       this.prisma.performanceReview.findMany({ where: { cycle: PROBATION_CYCLE } }),
       this.prisma.agentRun.findMany({ select: { intent: true } }),
@@ -114,7 +114,7 @@ export class PerformanceRepository {
               status: 'COMPLETED',
               progress: 100,
               affected: 1,
-              summary: `90-day probationary review created for ${emp.name}; manager ${emp.manager ?? 'unassigned'} notified to complete it by Day 80.`,
+              summary: `90-day probationary review created for ${emp.name}; manager ${emp.manager?.name ?? 'unassigned'} notified to complete it by Day 80.`,
               time: 'just now',
             },
           });
