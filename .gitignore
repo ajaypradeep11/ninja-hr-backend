@@ -10,3 +10,6 @@ src/platform/database/generated/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Local DB dumps (never commit — contain real employee PII: SIN, banking)
+backups/
