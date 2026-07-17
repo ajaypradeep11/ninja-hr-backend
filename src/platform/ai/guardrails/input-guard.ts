@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { TenantContext } from 'src/platform/database/tenant-context';
 import type { LlmClassifier, LlmMessage } from '../llm-provider';
 import { scanBlocklist } from './blocklist';
 import type { BlockedVerdict, GuardCategory } from './guard-verdict';
@@ -56,11 +57,24 @@ export class InputGuard {
   constructor(
     @Inject(LLM_CLASSIFIER) private readonly classifier: LlmClassifier,
     private readonly limiter: SlidingWindowRateLimiter,
+    @Optional() private readonly tenant?: TenantContext,
   ) {}
+
+  /**
+   * Rate-limit key. Identified callers get their own bucket. Callers with no
+   * user identity (the trusted persona-only lane) previously ALL shared one
+   * global 'anonymous' bucket — so one tenant's traffic exhausted every other
+   * tenant's allowance. Scope the anonymous bucket per tenant instead; with no
+   * tenant either, fall back to a single shared bucket (still a hard cap).
+   */
+  private limiterKey(userId: string | null): string {
+    if (userId) return userId;
+    return `anon:${this.tenant?.companyId ?? 'none'}`;
+  }
 
   async check(message: string, ctx: InputGuardContext): Promise<InputGuardOutcome> {
     if (message.length > MAX_INPUT_CHARS) return { kind: 'over_length' };
-    if (!this.limiter.allow(ctx.userId ?? 'anonymous')) return { kind: 'rate_limited' };
+    if (!this.limiter.allow(this.limiterKey(ctx.userId))) return { kind: 'rate_limited' };
     if (scanBlocklist(message)) {
       return { kind: 'blocked', verdict: refusalVerdict('harassment_profanity') };
     }

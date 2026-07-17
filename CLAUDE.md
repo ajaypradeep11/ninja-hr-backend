@@ -129,13 +129,23 @@ otherwise.
 ## Deployment
 
 Cloud Run + Cloud SQL (Postgres). Firebase App Hosting is Next.js-only and
-cannot run this NestJS service. `prisma migrate deploy` must be run against
-Cloud SQL separately (e.g. via the Cloud SQL Auth Proxy). CI:
-`.github/workflows/deploy.yml` builds/pushes a Docker image and deploys on
-every push to `main` (Workload Identity Federation, no stored secrets).
-Prefer `--set-secrets` (Secret Manager) over `--set-env-vars` for
-`INTERNAL_API_KEY` etc. Never set `FIREBASE_AUTH_EMULATOR_HOST` /
+cannot run this NestJS service. CI: `.github/workflows/deploy.yml` runs
+lint+tests, builds/pushes two SHA-pinned images (`runtime` = slim serving,
+`ops` = prisma CLI/toolchain), executes migrations via the `ninja-hr-migrate`
+Cloud Run job (ops image), then deploys — all on every push to `main`
+(Workload Identity Federation, no stored secrets). The serving container does
+NOT migrate at boot. Prefer `--set-secrets` (Secret Manager) over
+`--set-env-vars` for `INTERNAL_API_KEY` etc. (which accepts a comma-separated
+list for zero-downtime rotation). Never set `FIREBASE_AUTH_EMULATOR_HOST` /
 `FIREBASE_AUTH_DISABLED` in production.
+
+Safety interlocks: destructive DB tooling (`db:seed`, e2e, `migrate
+dev`/`reset`, `db push`) refuses to run when `DATABASE_URL` resolves to the
+live DB (`DB_LIVE=true`) unless `DB_LIVE_CONFIRM=yes` — see
+`src/platform/database/live-db.guard.ts`. Untrusted HTTP lanes are rate
+limited per IP (`AppThrottlerGuard`; the internal-key lane is exempt). The
+inbound-email webhook authenticates via `INBOUND_WEBHOOK_SECRET` HMAC
+(`InboundWebhookGuard`), not the internal key.
 
 ## Conventions
 

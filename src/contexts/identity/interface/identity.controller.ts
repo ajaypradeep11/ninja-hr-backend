@@ -1,5 +1,6 @@
 // src/contexts/identity/interface/identity.controller.ts
 import { Body, ConflictException, Controller, Get, Param, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { slugify, dedupeSlug } from 'src/platform/database/slug';
 import { ApiProperty, ApiTags } from '@nestjs/swagger';
 import { QueryBus } from '@nestjs/cqrs';
@@ -38,7 +39,7 @@ class CompanySignupDto {
 
   @ApiProperty()
   @IsString()
-  @MinLength(8)
+  @MinLength(10)
   password!: string;
 
   @ApiProperty({ enum: Province })
@@ -68,6 +69,10 @@ export class IdentityController {
    * companyId explicitly on every row instead.
    */
   @Public()
+  // Unauthenticated write that provisions a Company + Firebase user — the
+  // cheapest abuse target in the API. Strict per-IP cap on top of the global
+  // throttle (the trusted BFF lane is exempt; direct scripted abuse is not).
+  @Throttle({ default: { limit: 10, ttl: 600_000 } })
   @Post('company-signup')
   async companySignup(@Body() body: CompanySignupDto) {
     const email = body.workEmail.trim().toLowerCase();

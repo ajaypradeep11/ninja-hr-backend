@@ -27,6 +27,23 @@ describe('InputGuard', () => {
     expect(classify).not.toHaveBeenCalled();
   });
 
+  it('scopes anonymous rate-limit buckets per tenant, not one global bucket', async () => {
+    const limiter = new SlidingWindowRateLimiter(1); // 1 request/min to trip fast
+    const tenant = { companyId: 'company-a' };
+    const guard = new InputGuard(
+      { classify: jest.fn() } as unknown as LlmClassifier,
+      limiter,
+      tenant as never,
+    );
+    const anon = { userId: null, recentTurns: [], useClassifier: false };
+    expect(await guard.check('hello', anon)).toEqual({ kind: 'allowed', classifierDown: false });
+    // Same tenant's anonymous lane is now exhausted…
+    expect(await guard.check('hello', anon)).toEqual({ kind: 'rate_limited' });
+    // …but another tenant's anonymous lane is NOT starved by it.
+    tenant.companyId = 'company-b';
+    expect(await guard.check('hello', anon)).toEqual({ kind: 'allowed', classifierDown: false });
+  });
+
   it('builds payload from only the last two turns', () => {
     const payload = buildClassifierPayload('current', [
       { role: 'user', content: 'old' },

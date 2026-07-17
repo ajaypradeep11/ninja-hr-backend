@@ -26,7 +26,23 @@ permissions:
   id-token: write # required to mint the OIDC token for Workload Identity Federation
 
 jobs:
+  # Gate: nothing deploys unless lint + unit tests pass on the exact commit.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate
+      # The package's lint script uses --fix (mutates files); CI must only check.
+      - run: npx eslint "{src,test}/**/*.ts"
+      - run: npm test
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,11 +58,35 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      - name: Build and push image
+      # Two images from one Dockerfile (shared layer cache): the slim serving
+      # image and the ops image (prisma CLI + schema) that runs migrations.
+      # No mutable :latest tag — everything that runs is pinned to a SHA.
+      - name: Build and push images
         run: |
-          docker build -t "$IMAGE:$GITHUB_SHA" -t "$IMAGE:latest" .
+          docker build --target runtime -t "$IMAGE:$GITHUB_SHA" .
+          docker build --target ops -t "$IMAGE:$GITHUB_SHA-ops" .
           docker push "$IMAGE:$GITHUB_SHA"
-          docker push "$IMAGE:latest"
+          docker push "$IMAGE:$GITHUB_SHA-ops"
+
+      # Migrations run as a Cloud Run JOB before the service deploys — the
+      # serving container no longer migrates at boot, so cold starts can't
+      # race DDL and the service's DB user doesn't need DDL rights.
+      # One-time setup: create the job once with the DB connection wired up
+      #   gcloud run jobs create ninja-hr-migrate --image <any-ops-image> \
+      #     --region us-central1 --set-secrets DATABASE_URL=...,DIRECT_URL=... \
+      #     --set-cloudsql-instances <instance> --max-retries 0
+      # Subsequent `jobs update --image` calls preserve that configuration.
+      - name: Apply database migrations
+        run: |
+          gcloud run jobs update ninja-hr-migrate \
+            --image "$IMAGE:$GITHUB_SHA-ops" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --quiet
+          gcloud run jobs execute ninja-hr-migrate \
+            --region "$REGION" \
+            --project "$PROJECT_ID" \
+            --wait
 
       - name: Deploy to Cloud Run
         run: |

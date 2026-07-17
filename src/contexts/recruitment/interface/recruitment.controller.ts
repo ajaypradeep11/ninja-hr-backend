@@ -1,10 +1,13 @@
 // src/contexts/recruitment/interface/recruitment.controller.ts
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ActorCtx, type ActorContext } from 'src/platform/auth/actor-context';
 import { Roles } from 'src/platform/auth/roles.decorator';
+import { Public } from 'src/platform/auth/public.decorator';
+import { InboundWebhookGuard } from 'src/platform/auth/inbound-webhook.guard';
 import { TenantResolver } from 'src/platform/database/tenant-resolver.service';
 import { GetRequisitionsQuery } from '../application/queries/get-requisitions.query';
 import { GetRequisitionDetailQuery } from '../application/queries/get-requisition-detail.query';
@@ -274,11 +277,15 @@ export class RecruitmentController {
 
   /**
    * Inbound-email webhook (two-way mailbox). Point SendGrid Inbound Parse /
-   * SES→SNS at this route; the To: address carries the candidate's portal
-   * token (reply+<token>@mail domain). In production, swap the internal-key
-   * header for provider signature verification (e.g. SendGrid's signed webhook
-   * or SNS message signing) at the gateway.
+   * SES→SNS at this route. Auth is InboundWebhookGuard, NOT the internal key:
+   * a mail provider only needs the scoped INBOUND_WEBHOOK_SECRET (HMAC-SHA256
+   * over the raw body in x-webhook-signature) — never the full-trust key.
+   * @Public() skips the internal-key requirement; trusted internal callers
+   * still pass (InternalKeyGuard marks req.trusted on public routes too).
    */
+  @Public()
+  @UseGuards(InboundWebhookGuard)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Post('comms/inbound')
   inboundEmail(@Body() body: InboundEmailDto) {
     const token = /reply\+([A-Za-z0-9_-]+)@/.exec(body.to)?.[1];
@@ -476,6 +483,9 @@ export class RecruitmentController {
   }
 
   /** Careers-page application — consent required; returns the portal token. */
+  // Unauthenticated-reachable write that stores up to ~4.5MB of résumé bytes
+  // per call — cap per IP so scripted submissions can't balloon the DB.
+  @Throttle({ default: { limit: 20, ttl: 600_000 } })
   @Post('jobs/:slug/apply')
   applyToJob(@Param('slug') slug: string, @Body() body: ApplyDto) {
     return this.tenantResolver.runByRequisitionSlug(slug, () =>

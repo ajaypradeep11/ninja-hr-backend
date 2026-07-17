@@ -79,7 +79,7 @@ export class AcceptInviteHandler implements ICommandHandler<AcceptInviteCommand,
    * provisions for the invite. Mirrors `identity.controller`'s signup check.
    */
   private async uidFromPassword(caseId: string, email: string, password: string): Promise<string> {
-    if (password.length < 8) throw new BadRequestException('Password must be at least 8 characters.');
+    if (password.length < 10) throw new BadRequestException('Password must be at least 10 characters.');
 
     const existingUid = await this.firebase.findUserByEmail(email);
     if (existingUid) {

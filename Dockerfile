@@ -1,36 +1,48 @@
-# NinjaHR backend (NestJS + Prisma). Single image: generates the Prisma client,
-# builds, then on start applies migrations and runs the compiled server.
+# NinjaHR backend (NestJS + Prisma). Two images from one file:
+#
+#   --target runtime (default)  → slim serving image: prod deps + dist only.
+#                                 CMD is just `node dist/main` — migrations are
+#                                 NOT run here (see the ops image below), so the
+#                                 runtime DB user needs no DDL rights and
+#                                 concurrent Cloud Run cold-starts can't race
+#                                 `migrate deploy`.
+#   --target ops                → full toolchain image (prisma CLI, tsx, seed,
+#                                 schema/migrations). CI runs this as a Cloud Run
+#                                 job with `npx prisma migrate deploy` BEFORE
+#                                 deploying the runtime image. Also handy for
+#                                 one-off seeds against Cloud SQL.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
-# openssl is needed by Prisma's query engine
+# openssl is needed by Prisma tooling
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run prisma:generate && npm run build
 
+# ── Ops image: migrations + seed (full node_modules incl. prisma CLI + tsx) ──
+FROM build AS ops
+ENV NODE_ENV=production
+RUN chown -R node:node /app
+USER node
+# Default is the CI migration step; a one-off seed overrides the command:
+#   npx tsx prisma/seed.ts   (guarded by live-db.guard — needs DB_LIVE_CONFIRM=yes)
+CMD ["npx", "prisma", "migrate", "deploy"]
+
+# ── Runtime image: serve only ────────────────────────────────────────────────
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
-# Bring the full build output: dist, node_modules (incl. prisma CLI for migrate deploy
-# and the generated client), schema/migrations, and prisma.config.ts.
-COPY --from=build /app/node_modules ./node_modules
+COPY package*.json ./
+# Production dependencies only — no prisma CLI, tsx, jest, eslint, compilers.
+# The generated Prisma client compiles into dist (engine-less driver adapter),
+# so the runtime needs neither the schema nor the generator output from src.
+RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/prisma.config.ts ./prisma.config.ts
-COPY --from=build /app/package.json ./package.json
-# The seed (tsx prisma/seed.ts) imports the generated client from src/, so ship it too.
-COPY --from=build /app/src/platform/database/generated ./src/platform/database/generated
-# scripts/seed-auth-emulator.ts (run via `npx tsx` by the compose seed override)
-# also imports the generated client, and needs tsx itself (a devDependency —
-# present because npm ci above installs the full node_modules, not --omit=dev).
-COPY --from=build /app/scripts ./scripts
 # Drop root: run as the image's built-in non-root `node` user so a compromised
-# process is not uid 0 inside the container. migrate deploy + node only read the
-# app tree and talk to the DB, so read ownership is sufficient.
+# process is not uid 0 inside the container.
 RUN chown -R node:node /app
 USER node
 EXPOSE 4000
-# Apply any pending migrations, then start. DATABASE_URL/DIRECT_URL come from compose env.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
+CMD ["node", "dist/main"]

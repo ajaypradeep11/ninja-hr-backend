@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { DatabaseModule } from './platform/database/database.module';
 import { HealthController } from './platform/health/health.controller';
 import { InternalKeyGuard } from './platform/auth/internal-key.guard';
+import { AppThrottlerGuard } from './platform/auth/app-throttler.guard';
 import { ActorGuard } from './platform/auth/actor.guard';
 import { RolesGuard } from './platform/auth/roles.guard';
 import { IdentityModule } from './contexts/identity/identity.module';
@@ -19,6 +21,11 @@ import { ToolLibraryModule } from './contexts/tool-library/tool-library.module';
 
 @Module({
   imports: [
+    // Abuse cap for the untrusted lanes (per client IP — see AppThrottlerGuard
+    // for why the trusted BFF lane is exempt). Routes tighten this with
+    // @Throttle where a cheap unauthenticated write exists (company signup,
+    // careers apply).
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
     DatabaseModule,
     IdentityModule,
     OnboardingModule,
@@ -49,6 +56,9 @@ import { ToolLibraryModule } from './contexts/tool-library/tool-library.module';
     // that user with no credential check at all. Registering it here fixes
     // both the ordering and the impersonation gap.
     { provide: APP_GUARD, useClass: InternalKeyGuard },
+    // Throttler runs AFTER the edge guard on purpose: it reads req.trusted
+    // (set by InternalKeyGuard) to exempt the BFF lane from per-IP limits.
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_GUARD, useClass: ActorGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './platform/database/prisma-exception.filter';
 import { TenantContext } from './platform/database/tenant-context';
+import { validInternalKeys } from './platform/auth/internal-key.guard';
 
 /**
  * Fail closed on dangerous production configuration. The internal-key lane is a
@@ -16,12 +17,14 @@ import { TenantContext } from './platform/database/tenant-context';
 function assertProductionConfig(): void {
   if (process.env.NODE_ENV !== 'production') return;
   const errors: string[] = [];
-  const key = process.env.INTERNAL_API_KEY;
-  if (!key || key.length < 24) {
-    errors.push('INTERNAL_API_KEY must be set and at least 24 characters in production');
+  // INTERNAL_API_KEY may be a comma-separated rotation list — EVERY entry must
+  // be strong, since any one of them grants the full-trust lane.
+  const keys = validInternalKeys();
+  if (keys.length === 0 || keys.some((k) => k.length < 24)) {
+    errors.push('INTERNAL_API_KEY must be set and every listed key at least 24 characters in production');
   }
-  if (key === 'dev-internal-key') {
-    errors.push('INTERNAL_API_KEY is still the development default');
+  if (keys.includes('dev-internal-key')) {
+    errors.push('INTERNAL_API_KEY still contains the development default');
   }
   if (process.env.FIREBASE_AUTH_DISABLED === '1') {
     errors.push('FIREBASE_AUTH_DISABLED=1 disables all end-user authentication and must not be set in production');
@@ -36,9 +39,30 @@ async function bootstrap() {
   // Raise the JSON body limit so base64-encoded résumé uploads (careers page)
   // aren't rejected by the default ~100kb express limit.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const { default: helmet } = await import('helmet');
   const { json, urlencoded } = await import('express');
-  app.use(json({ limit: '8mb' }));
+  // Security headers (nosniff, HSTS, frame-deny, …). CSP is disabled: this is
+  // a JSON API that serves no HTML — except Swagger UI in dev, which inline
+  // scripts and would break under helmet's default CSP.
+  app.use(helmet({ contentSecurityPolicy: false }));
+  // `verify` stashes the raw body bytes so InboundWebhookGuard can check an
+  // HMAC signature over EXACTLY what the mail provider signed (re-serializing
+  // parsed JSON would not round-trip byte-for-byte).
+  app.use(
+    json({
+      limit: '8mb',
+      verify: (req, _res, buf) => {
+        (req as { rawBody?: Buffer }).rawBody = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: '8mb' }));
+
+  // Cloud Run fronts the service with one Google proxy hop that appends the
+  // real client IP to X-Forwarded-For. Trusting exactly that hop makes req.ip
+  // (which the throttler keys on) the client's IP rather than the proxy's,
+  // while still ignoring any spoofed XFF entries the client sent itself.
+  (app.getHttpAdapter().getInstance() as import('express').Express).set('trust proxy', 1);
 
   // Open a fresh AsyncLocalStorage tenant store for every request BEFORE the
   // guard chain runs. ActorGuard mutates it (tenant.set) once it resolves the
@@ -53,7 +77,9 @@ async function bootstrap() {
   // InternalKeyGuard is registered as the first APP_GUARD in AppModule (see
   // its providers array for why the order matters) — no need to add it again
   // via app.useGlobalGuards() here.
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  // forbidNonWhitelisted: unknown fields are a 400, not a silent strip —
+  // surfaces client bugs and makes probing visible instead of invisible.
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.useGlobalFilters(new PrismaExceptionFilter());
 
   // Swagger is served as middleware, which the global guard does not cover —

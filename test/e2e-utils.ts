@@ -2,6 +2,11 @@
 // (prefix, validation pipe, internal-key guard, prisma filter) and resolves
 // the seeded demo users so specs can act as HR / manager / employee.
 import 'dotenv/config';
+import '../src/platform/database/resolve-db-env'; // resolve DB_LIVE the same way main.ts does…
+import { assertNotLiveDb } from '../src/platform/database/live-db.guard';
+// …then refuse to run the e2e suite against the live database. The suite
+// mutates whatever DATABASE_URL points at; DB_LIVE_CONFIRM=yes overrides.
+assertNotLiveDb('e2e suite');
 // Existing e2e suites drive everything through the trusted internal-key lane
 // and have no Firebase emulator to talk to — keep the guard's Firebase lane
 // dormant by default so `npm run test:e2e` works without extra setup. Must be
@@ -34,7 +39,7 @@ export async function createE2eApp(): Promise<INestApplication> {
   const tenant = app.get(TenantContext);
   app.use((_req: unknown, _res: unknown, next: () => void) => tenant.run(null, () => next()));
   app.setGlobalPrefix('api/v1');
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   // InternalKeyGuard is registered as the first APP_GUARD in AppModule
   // (must run before ActorGuard so req.trusted/req.firebaseUser are set
   // before ActorGuard resolves req.actor) — no need to add it again here.

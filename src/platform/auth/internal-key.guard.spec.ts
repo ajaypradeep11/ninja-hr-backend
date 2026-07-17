@@ -55,4 +55,45 @@ describe('InternalKeyGuard bearer lane', () => {
     await expect(guard.canActivate(ctxWith({ 'x-internal-key': 'k' }, req))).resolves.toBe(true);
     expect(req.trusted).toBe(true);
   });
+
+  it('marks trusted callers on @Public routes too (throttler exemption)', async () => {
+    process.env.INTERNAL_API_KEY = 'k';
+    const guard = new InternalKeyGuard(reflectorPublic, { enabled: false } as never);
+    const req: Record<string, unknown> = {};
+    await expect(guard.canActivate(ctxWith({ 'x-internal-key': 'k' }, req))).resolves.toBe(true);
+    expect(req.trusted).toBe(true);
+  });
+});
+
+describe('InternalKeyGuard key rotation', () => {
+  const originalKey = process.env.INTERNAL_API_KEY;
+  afterEach(() => {
+    if (originalKey === undefined) delete process.env.INTERNAL_API_KEY;
+    else process.env.INTERNAL_API_KEY = originalKey;
+  });
+
+  it('accepts BOTH keys of a comma-separated rotation list', async () => {
+    process.env.INTERNAL_API_KEY = 'old-key, new-key';
+    const guard = new InternalKeyGuard(reflectorPass, { enabled: false } as never);
+    for (const key of ['old-key', 'new-key']) {
+      const req: Record<string, unknown> = {};
+      await expect(guard.canActivate(ctxWith({ 'x-internal-key': key }, req))).resolves.toBe(true);
+      expect(req.trusted).toBe(true);
+    }
+  });
+
+  it('rejects a key outside the rotation list and the raw joined value', async () => {
+    process.env.INTERNAL_API_KEY = 'old-key,new-key';
+    const guard = new InternalKeyGuard(reflectorPass, { enabled: false } as never);
+    await expect(guard.canActivate(ctxWith({ 'x-internal-key': 'wrong' }))).rejects.toThrow(UnauthorizedException);
+    await expect(guard.canActivate(ctxWith({ 'x-internal-key': 'old-key,new-key' }))).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('fails closed on an empty/unset key env', async () => {
+    process.env.INTERNAL_API_KEY = '';
+    const guard = new InternalKeyGuard(reflectorPass, { enabled: false } as never);
+    await expect(guard.canActivate(ctxWith({ 'x-internal-key': '' }))).rejects.toThrow(UnauthorizedException);
+  });
 });

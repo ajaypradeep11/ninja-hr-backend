@@ -33,7 +33,7 @@ export class PolicyDto {
  */
 export class AcceptInviteDto {
   @ApiProperty({ required: false, minLength: 8 })
-  @IsOptional() @IsString() @MinLength(8)
+  @IsOptional() @IsString() @MinLength(10)
   password?: string;
 
   @ApiProperty({ required: false })

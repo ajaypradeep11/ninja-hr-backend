@@ -2,6 +2,7 @@
 // Run: npm run db:seed
 import 'dotenv/config';
 import '../src/platform/database/resolve-db-env'; // rewrites DATABASE_URL from DB_LIVE before the client below
+import { assertNotLiveDb } from '../src/platform/database/live-db.guard';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/platform/database/generated/prisma/client';
 import { tenantExtension } from '../src/platform/database/tenant.extension';
@@ -12,6 +13,10 @@ import type { TenantContext } from '../src/platform/database/tenant-context';
 const SEED_COMPANY_ID = 'seed-company';
 const SEED_COMPANY_SLUG = 'acme';
 const SEED_COMPANY_NAME = 'Acme Inc.';
+
+// Never seed the live database by accident — a DB_LIVE=true left in .env
+// would otherwise write demo rows into production. DB_LIVE_CONFIRM=yes overrides.
+assertNotLiveDb('db:seed');
 
 const base = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),

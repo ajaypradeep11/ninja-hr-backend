@@ -12,7 +12,7 @@
 // when the verified caller is HR_ADMIN; realUserId always carries the real,
 // verified user's id so impersonation is traceable even while userId reflects
 // the impersonated target.
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../database/prisma.service';
 import { TenantContext } from '../database/tenant-context';
@@ -29,6 +29,8 @@ interface ActorRequest {
 
 @Injectable()
 export class ActorGuard implements CanActivate {
+  private readonly logger = new Logger(ActorGuard.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
@@ -74,6 +76,12 @@ export class ActorGuard implements CanActivate {
           throw new ForbiddenException('cannot impersonate a user in another company');
         }
         acting = target;
+        // Audit trail: impersonation must be attributable after the fact.
+        // Cloud Run ships stdout to Cloud Logging, so one structured line per
+        // impersonated request is durable and queryable without a DB write.
+        this.logger.log(
+          `IMPERSONATION real=${user.id} acting=${target.id} company=${user.companyId}`,
+        );
       }
       req.actor = {
         userId: acting.id,
