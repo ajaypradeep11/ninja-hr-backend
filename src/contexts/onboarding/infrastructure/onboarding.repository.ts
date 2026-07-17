@@ -290,45 +290,16 @@ export class OnboardingRepository {
       return { created: false, employeeId: existing.id };
     }
 
-    // The preboarding profile is optional shape-wise — activation gates require
-    // the forms done, but stay defensive about individual fields.
-    const p = (row.profile ?? {}) as Partial<{
-      legalFirstName: string; legalLastName: string; preferredName: string;
-      dateOfBirth: string; birthdayPrivate: boolean; sin: string; phone: string;
-      addressStreet: string; addressCity: string; addressPostal: string;
-      emergencyName: string; emergencyRelationship: string; emergencyPhone: string;
-      workEligibility: string; workPermitExpiry: string;
-      bankInstitution: string; bankTransit: string; bankAccount: string;
-    }>;
-    const legalName = [p.legalFirstName, p.legalLastName].filter(Boolean).join(' ').trim() || row.name;
-    const eligibility = ELIGIBILITY_TO_DB[p.workEligibility ?? ''] ?? null;
-
+    const p = caseProfile(row);
     const employee = await this.prisma.employee.create({
       data: {
-        name: legalName,
-        preferredName: p.preferredName?.trim() || null,
-        title: row.title,
-        department: row.department,
-        province: row.province,
+        ...hrisFieldsFromCase(row),
         email: row.personalEmail,
         personalEmail: row.personalEmail,
         hireDate: row.startDate,
-        birthDate: p.dateOfBirth ? new Date(p.dateOfBirth) : new Date('1970-01-01T00:00:00.000Z'),
-        birthdayPrivate: p.birthdayPrivate ?? false,
         status: opts.status ?? 'ACTIVE',
         salary: 0, // compensation is set by HR post-hire; the wizard never collects it
         employeeNumber: await this.nextEmployeeNumber(),
-        phone: p.phone || null,
-        addressStreet: p.addressStreet || null,
-        addressCity: p.addressCity || null,
-        addressProvince: row.province,
-        addressPostal: p.addressPostal || null,
-        sin: p.sin || null,
-        bankInstitution: p.bankInstitution || null,
-        bankTransit: p.bankTransit || null,
-        bankAccount: p.bankAccount || null,
-        workEligibility: eligibility as never,
-        workPermitExpiry: p.workPermitExpiry ? new Date(p.workPermitExpiry) : null,
       },
     });
     // Top-level creates on purpose (nested writes bypass the tenant stamping).
@@ -355,6 +326,41 @@ export class OnboardingRepository {
   /** Point the case at the employee it provisioned (see `provisionEmployee`). */
   private async linkEmployee(caseId: string, employeeId: string): Promise<void> {
     await this.prisma.onboardingCase.update({ where: { id: caseId }, data: { employeeId } });
+  }
+
+  /**
+   * Push the submitted new-hire form onto the linked Employee record.
+   *
+   * The record is created the moment the invite is accepted, when the profile is
+   * still empty — so without this the HRIS row keeps its placeholders forever
+   * (DOB stuck at 1970-01-01, the case's name instead of their legal one, no
+   * phone/address/SIN/banking) no matter what the hire later fills in. Called
+   * when the form is submitted and again at activation, so HR sees the real
+   * person both before and after the hire.
+   */
+  async syncEmployeeFromProfile(caseId: string): Promise<boolean> {
+    const row = await this.prisma.onboardingCase.findUnique({ where: { id: caseId } });
+    if (!row?.employeeId || !row.profile) return false;
+
+    await this.prisma.employee.update({
+      where: { id: row.employeeId },
+      data: hrisFieldsFromCase(row),
+    });
+
+    // Emergency contact lives in its own table; mirror the same "one on file"
+    // rule the create uses instead of stacking a new row per re-submission.
+    const p = caseProfile(row);
+    if (p.emergencyName) {
+      const existing = await this.prisma.emergencyContact.findFirst({ where: { employeeId: row.employeeId } });
+      const data = {
+        name: p.emergencyName,
+        relationship: p.emergencyRelationship || 'Not specified',
+        phone: p.emergencyPhone || '',
+      };
+      if (existing) await this.prisma.emergencyContact.update({ where: { id: existing.id }, data });
+      else await this.prisma.emergencyContact.create({ data: { employeeId: row.employeeId, ...data } });
+    }
+    return true;
   }
 
   /**
@@ -401,19 +407,25 @@ export class OnboardingRepository {
   /**
    * Copies the case's VERIFIED documents into the employee's personal vault
    * (folder 02_Onboarding_and_Tax) so they appear in "My Profile → Documents".
-   * Only when an owning Employee can be matched (by case name): a personal doc
-   * must never land in the vault UNOWNED with Employee access — that would be
-   * company-wide visible. Idempotent by (employee, folder, name). Returns the
-   * number of newly published documents.
+   * Only when an owning Employee can be resolved: a personal doc must never land
+   * in the vault UNOWNED with Employee access — that would be company-wide
+   * visible. Idempotent by (employee, folder, name). Returns the number of newly
+   * published documents.
    */
   async publishVerifiedDocsToVault(caseId: string): Promise<number> {
     const row = await this.prisma.onboardingCase.findUnique({
       where: { id: caseId },
-      select: { name: true, documents: { select: { name: true, type: true, status: true } } },
+      select: { name: true, employeeId: true, documents: { select: { name: true, type: true, status: true } } },
     });
     if (!row) return 0;
-    const emp = await this.prisma.employee.findFirst({ where: { name: row.name }, select: { id: true } });
-    if (!emp) return 0; // no Employee record yet (activation does not create one) — nothing to attach to
+    // By LINK first, name only as the legacy fallback: the record carries the
+    // hire's legal name from their form, which routinely differs from the name
+    // HR typed on the case ("Kate Smith" vs "Katherine Smith") — matching on it
+    // silently filed nothing.
+    const emp = row.employeeId
+      ? await this.prisma.employee.findUnique({ where: { id: row.employeeId }, select: { id: true } })
+      : await this.prisma.employee.findFirst({ where: { name: row.name }, select: { id: true } });
+    if (!emp) return 0; // no Employee record to attach to
 
     const verified = row.documents.filter((d) => d.status === 'VERIFIED');
     if (verified.length === 0) return 0;
@@ -449,3 +461,52 @@ const ELIGIBILITY_TO_DB: Record<string, string> = {
   'Work Permit': 'WORK_PERMIT',
   'Study Permit': 'STUDY_PERMIT',
 };
+
+/** The new-hire form as stored on the case. Every field optional — the record
+ *  gets created at invite-acceptance, long before this is filled in. */
+type CaseProfile = Partial<{
+  legalFirstName: string; legalLastName: string; preferredName: string;
+  dateOfBirth: string; birthdayPrivate: boolean; sin: string; phone: string;
+  addressStreet: string; addressCity: string; addressPostal: string;
+  emergencyName: string; emergencyRelationship: string; emergencyPhone: string;
+  workEligibility: string; workPermitExpiry: string;
+  bankInstitution: string; bankTransit: string; bankAccount: string;
+}>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const caseProfile = (row: any): CaseProfile => (row.profile ?? {}) as CaseProfile;
+
+/**
+ * The case (+ whatever the hire has submitted) as Employee columns.
+ *
+ * Shared by the create at invite-acceptance and the re-sync at activation, so
+ * the two can't drift: acceptance runs when `profile` is still empty — it exists
+ * only to give the hire a login — and every real value arrives later, when they
+ * actually fill the form in. Anything they haven't provided stays null rather
+ * than overwriting something HR set by hand.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function hrisFieldsFromCase(row: any) {
+  const p = caseProfile(row);
+  return {
+    name: [p.legalFirstName, p.legalLastName].filter(Boolean).join(' ').trim() || row.name,
+    preferredName: p.preferredName?.trim() || null,
+    title: row.title,
+    department: row.department,
+    province: row.province,
+    // No DOB yet → the epoch placeholder; the real one lands at sync time.
+    birthDate: p.dateOfBirth ? new Date(p.dateOfBirth) : new Date('1970-01-01T00:00:00.000Z'),
+    birthdayPrivate: p.birthdayPrivate ?? false,
+    phone: p.phone || null,
+    addressStreet: p.addressStreet || null,
+    addressCity: p.addressCity || null,
+    addressProvince: row.province,
+    addressPostal: p.addressPostal || null,
+    sin: p.sin || null,
+    bankInstitution: p.bankInstitution || null,
+    bankTransit: p.bankTransit || null,
+    bankAccount: p.bankAccount || null,
+    workEligibility: (ELIGIBILITY_TO_DB[p.workEligibility ?? ''] ?? null) as never,
+    workPermitExpiry: p.workPermitExpiry ? new Date(p.workPermitExpiry) : null,
+  };
+}

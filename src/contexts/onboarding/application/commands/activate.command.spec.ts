@@ -34,6 +34,7 @@ function makeRepo(c: OnboardingCase = readyCase) {
     // Default false = the employee was not sitting at PRE_HIRE (nothing to
     // promote); the tests that care flip this per-case.
     activateEmployee: async (employeeId: string) => { calls.promoted.push(employeeId); return false; },
+    syncEmployeeFromProfile: async () => true,
     publishVerifiedDocsToVault: async (id: string) => { calls.published.push(id); return 1; },
   };
   return { repo: repo as never, calls };

@@ -19,16 +19,18 @@ const baseInput = {
 
 function makeRepo(opts: { onFile?: Record<string, unknown> | null; c?: OnboardingCase } = {}) {
   const saved: Record<string, unknown>[] = [];
+  const synced: string[] = [];
   const repo = {
     findByToken: async () => opts.c ?? openCase,
     rawProfile: async () => opts.onFile ?? null,
     saveProfile: async (_t: string, profile: Record<string, unknown>) => { saved.push(profile); },
     updateForms: async () => undefined,
+    syncEmployeeFromProfile: async (id: string) => { synced.push(id); return true; },
     addAudit: async () => undefined,
     findById: async () => opts.c ?? openCase,
     setStatus: async () => undefined,
   };
-  return { handler: new SubmitProfileHandler(repo as never), saved };
+  return { handler: new SubmitProfileHandler(repo as never), saved, synced };
 }
 
 describe('SubmitProfileHandler — secrets already on file', () => {
@@ -71,6 +73,15 @@ describe('SubmitProfileHandler — secrets already on file', () => {
     const { handler: h2 } = makeRepo({ onFile: null });
     await expect(h2.execute(new SubmitProfileCommand('t1', { ...baseInput, sin: '123456789' })))
       .rejects.toThrow(BadRequestException); // bank account still missing
+  });
+
+  // The record is created at invite-acceptance, when the profile is still
+  // empty. Without this push, HR's view keeps the placeholders (DOB 1970-01-01,
+  // the case's name, no phone/address/SIN) no matter what the hire submits.
+  it('pushes the submitted form onto the linked Employee record', async () => {
+    const { handler, synced } = makeRepo({ onFile });
+    await handler.execute(new SubmitProfileCommand('t1', { ...baseInput }));
+    expect(synced).toEqual(['c1']);
   });
 
   it('stamps submittedAt on every save', async () => {

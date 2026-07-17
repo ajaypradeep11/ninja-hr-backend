@@ -51,6 +51,9 @@ export class ActivateHandler implements ICommandHandler<ActivateCommand, Onboard
     } else if (provisioned && (await this.repo.activateEmployee(provisioned.employeeId))) {
       await this.repo.addAudit(id, 'Employee record activated — now listed in the employee directory');
     }
+    // Activation is the hire: whatever the record was seeded with at invite
+    // acceptance, the submitted form is the truth by now.
+    await this.repo.syncEmployeeFromProfile(id);
     const published = await this.repo.publishVerifiedDocsToVault(id);
     if (published > 0) {
       await this.repo.addAudit(id, `${published} verified document(s) filed to the employee's vault`);

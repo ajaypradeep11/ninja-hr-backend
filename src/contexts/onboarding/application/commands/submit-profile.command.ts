@@ -43,6 +43,10 @@ export class SubmitProfileHandler implements ICommandHandler<SubmitProfileComman
       submittedAt: new Date().toISOString(),
     });
     await this.repo.updateForms(token, { ...c.forms, personal: true, directDeposit: true });
+    // The Employee row already exists (invite acceptance created it, before any
+    // of this was filled in) — push the real values onto it now, or HR's record
+    // keeps the placeholders forever.
+    await this.repo.syncEmployeeFromProfile(c.id);
     await this.repo.addAudit(c.id, 'New hire form submitted');
     return settle(this.repo, c.id);
   }
