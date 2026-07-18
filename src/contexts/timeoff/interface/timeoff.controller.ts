@@ -67,6 +67,7 @@ export class TimeoffController {
           end: body.end,
           days: body.days,
           hours: body.hours,
+          note: body.note,
         },
         actor,
       ),

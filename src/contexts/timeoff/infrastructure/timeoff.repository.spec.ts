@@ -1,6 +1,7 @@
 // src/contexts/timeoff/infrastructure/timeoff.repository.spec.ts
 import { ForbiddenException } from '@nestjs/common';
 import { TimeoffRepository } from './timeoff.repository';
+import { rowToLeaveRequest } from './timeoff.mapper';
 import type { ActorContext } from 'src/platform/auth/actor-context';
 
 const actor = (over: Partial<ActorContext>): ActorContext => ({
@@ -115,5 +116,50 @@ describe('TimeoffRepository.updateStatus authorization (by reporting line)', () 
         actor({ role: 'EMPLOYEE', employeeId: null }),
       ),
     ).rejects.toThrow(ForbiddenException);
+  });
+});
+
+describe('TimeoffRepository.createLeave persists the employee note', () => {
+  const makeCreatePrisma = () => ({
+    employee: { findFirst: jest.fn(async () => ({ id: 'emp1' })) },
+    leaveRequest: { create: jest.fn(async () => ({})) },
+  });
+  const base = { employeeName: 'Ajay', type: 'Vacation' as const, start: '2026-07-21', end: '2026-07-25', days: 5 };
+
+  it('passes the note through to the created row', async () => {
+    const prisma = makeCreatePrisma();
+    await new TimeoffRepository(prisma as never).createLeave({ ...base, note: 'Family trip out of province' });
+    expect(prisma.leaveRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ note: 'Family trip out of province' }) }),
+    );
+  });
+
+  it('stores null when no note is given', async () => {
+    const prisma = makeCreatePrisma();
+    await new TimeoffRepository(prisma as never).createLeave(base);
+    expect(prisma.leaveRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ note: null }) }),
+    );
+  });
+});
+
+describe('rowToLeaveRequest exposes the note', () => {
+  const base = {
+    id: 'lr1',
+    employee: { name: 'Ajay', department: 'Engineering', province: 'ON' },
+    type: 'VACATION',
+    start: new Date('2026-07-21'),
+    end: new Date('2026-07-25'),
+    status: 'PENDING',
+    days: 5,
+    hours: null,
+  };
+
+  it('maps a present note', () => {
+    expect(rowToLeaveRequest({ ...base, note: 'Family trip' }).note).toBe('Family trip');
+  });
+
+  it('maps a null note to undefined', () => {
+    expect(rowToLeaveRequest({ ...base, note: null }).note).toBeUndefined();
   });
 });

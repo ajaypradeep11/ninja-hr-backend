@@ -1,6 +1,6 @@
 // src/contexts/timeoff/interface/dto/timeoff.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDateString, IsIn, IsInt, IsOptional, IsString, Max, Min, ValidateIf } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import type { LeaveStatus, LeaveType } from '../../domain/timeoff.types';
 
 const LEAVE_TYPES: LeaveType[] = [
@@ -44,6 +44,13 @@ export class CreateLeaveRequestDto {
   @Min(1)
   @Max(MAX_HOURS)
   hours?: number;
+
+  /** Free-text note for the manager ("anything your manager should know"). */
+  @ApiProperty({ required: false, maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
 }
 
 /** HR absence-record override — every field optional; only what's sent changes. */

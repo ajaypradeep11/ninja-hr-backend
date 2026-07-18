@@ -13,6 +13,8 @@ export interface CreateLeaveInput {
   days: number;
   /** Partial-day request: hours on `start` (1–7). Omit for full day(s). */
   hours?: number;
+  /** Free-text note for the manager. Omit for none. */
+  note?: string;
 }
 
 export interface UpdateLeaveInput {
@@ -175,6 +177,7 @@ export class TimeoffRepository {
         // Overtime is a single-date entry regardless of the days sent.
         days: isOvertime ? 1 : input.days,
         hours: input.hours ?? null,
+        note: input.note?.trim() ? input.note.trim() : null,
       },
     });
   }

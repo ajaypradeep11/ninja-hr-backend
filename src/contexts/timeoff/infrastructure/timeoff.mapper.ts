@@ -40,5 +40,6 @@ export function rowToLeaveRequest(row: any): LeaveRequest {
     province: row.employee.province as ProvinceCode,
     days: row.days,
     hours: row.hours ?? undefined,
+    note: row.note ?? undefined,
   };
 }

@@ -24,4 +24,6 @@ export interface LeaveRequest {
   days: number;
   /** Partial-day request: hours taken on `start` (1–7). Undefined = full day(s). */
   hours?: number;
+  /** Free-text note the employee submitted with the request. Undefined when none. */
+  note?: string;
 }

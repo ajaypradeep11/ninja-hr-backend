@@ -227,6 +227,8 @@ model LeaveRequest {
   days       Int
   /// Partial-day request: hours taken on `start` (1–7). Null = full day(s).
   hours      Int?
+  /// Free-text note the employee submits with the request ("anything your manager should know").
+  note       String?
   companyId  String?
   company    Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
