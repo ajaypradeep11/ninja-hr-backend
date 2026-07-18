@@ -15,6 +15,10 @@ export interface PerformanceReview {
   cycle: string;
   state: ReviewState;
   score?: number;
+  /** Employee self-assessment. Undefined until written. */
+  selfEvaluation?: string;
+  /** Manager's written assessment. Undefined until written. */
+  managerEvaluation?: string;
   due: string; // ISO date YYYY-MM-DD
 }
 

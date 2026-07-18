@@ -39,6 +39,15 @@ export class UploadVaultDocumentDto {
   dataBase64?: string;
 }
 
+/** Accepted uploaded-material MIME types (PDF, images, Word, PowerPoint). */
+const COURSE_MATERIAL_MIME = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+] as const;
+
 export class CreateCourseDto {
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(160) title!: string;
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(80) category!: string;
@@ -46,6 +55,21 @@ export class CreateCourseDto {
   @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(500) contentUrl?: string;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(1) @Max(100000) durationMins?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsInt() @Min(0) @Max(100) passMark?: number;
+
+  /** Optional uploaded course material — original file name. */
+  @ApiProperty({ required: false }) @IsOptional() @IsString() @MaxLength(200) materialFileName?: string;
+
+  @ApiProperty({ required: false, enum: COURSE_MATERIAL_MIME })
+  @IsOptional()
+  @IsIn(COURSE_MATERIAL_MIME as unknown as string[])
+  materialMimeType?: string;
+
+  /** Base64 payload, ~8 MB file ceiling (mirrors the vault upload cap). */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(11_500_000)
+  materialDataBase64?: string;
 }
 
 export class UpdateCourseDto {

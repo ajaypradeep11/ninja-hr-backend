@@ -620,14 +620,18 @@ enum PipState {
 }
 
 model PerformanceReview {
-  id         String      @id @default(cuid())
-  employee   Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId String
-  cycle      String
-  state      ReviewState @default(DRAFT)
-  score      Float?
-  due        DateTime
-  companyId  String?
+  id                String      @id @default(cuid())
+  employee          Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId        String
+  cycle             String
+  state             ReviewState @default(DRAFT)
+  score             Float?
+  /// The employee's self-assessment (filled during the Self-Evaluation stage).
+  selfEvaluation    String?
+  /// The manager's written assessment (filled during the Manager-Evaluation stage).
+  managerEvaluation String?
+  due               DateTime
+  companyId         String?
   company    Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
@@ -670,6 +674,12 @@ model TrainingCourse {
   contentUrl   String?
   durationMins Int?
   passMark     Int?
+  // Optional uploaded course material (PDF/slides), stored inline like vault
+  // documents. Null for link-only courses. List reads omit `materialData`.
+  materialFileName String?
+  materialMimeType String?
+  materialSize     Int?
+  materialData     Bytes?
   active       Boolean              @default(true)
   /// Peer-created courses flow DRAFT → PENDING_APPROVAL → PUBLISHED/REJECTED.
   /// HR-authored catalog courses are PUBLISHED from birth.

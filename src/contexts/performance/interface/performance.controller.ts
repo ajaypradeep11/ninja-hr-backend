@@ -7,6 +7,8 @@ import { Roles } from 'src/platform/auth/roles.decorator';
 import { GetPerformanceReviewsQuery } from '../application/queries/get-performance-reviews.query';
 import { GetPipsQuery } from '../application/queries/get-pips.query';
 import { AdvanceReviewStateCommand } from '../application/commands/advance-review-state.command';
+import { CreateReviewCommand } from '../application/commands/create-review.command';
+import { UpdateReviewCommand } from '../application/commands/update-review.command';
 import { IssuePipCommand } from '../application/commands/issue-pip.command';
 import { RunProbationSweepCommand } from '../application/commands/run-probation-sweep.command';
 import {
@@ -24,6 +26,7 @@ import {
 } from '../application/growth.handlers';
 import {
   ActionItemDto,
+  CreateReviewDto,
   FeedbackRequestDto,
   FeedbackResponseDto,
   GoalProgressDto,
@@ -32,6 +35,7 @@ import {
   KudosDto,
   TalkingPointDto,
   ToggleActionItemDto,
+  UpdateReviewDto,
 } from './dto/performance.dto';
 
 @ApiTags('performance')
@@ -50,6 +54,28 @@ export class PerformanceController {
   @Roles('HR_ADMIN')
   getReviews() {
     return this.queries.execute(new GetPerformanceReviewsQuery());
+  }
+
+  /** Start a review for an employee (begins in Draft). */
+  @Post('reviews')
+  @Roles('HR_ADMIN')
+  createReview(@Body() body: CreateReviewDto) {
+    return this.commands.execute(
+      new CreateReviewCommand({ employeeId: body.employeeId, cycle: body.cycle, due: body.due }),
+    );
+  }
+
+  /** Fill in review content (self/manager evaluation, score). */
+  @Patch('reviews/:id')
+  @Roles('HR_ADMIN')
+  updateReview(@Param('id') id: string, @Body() body: UpdateReviewDto) {
+    return this.commands.execute(
+      new UpdateReviewCommand(id, {
+        selfEvaluation: body.selfEvaluation,
+        managerEvaluation: body.managerEvaluation,
+        score: body.score,
+      }),
+    );
   }
 
   @Get('pips')

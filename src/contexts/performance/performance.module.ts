@@ -7,6 +7,8 @@ import { GrowthRepository } from './infrastructure/growth.repository';
 import { GetPerformanceReviewsHandler } from './application/queries/get-performance-reviews.query';
 import { GetPipsHandler } from './application/queries/get-pips.query';
 import { AdvanceReviewStateHandler } from './application/commands/advance-review-state.command';
+import { CreateReviewHandler } from './application/commands/create-review.command';
+import { UpdateReviewHandler } from './application/commands/update-review.command';
 import { IssuePipHandler } from './application/commands/issue-pip.command';
 import { RunProbationSweepHandler } from './application/commands/run-probation-sweep.command';
 import {
@@ -32,6 +34,8 @@ import {
     GetPerformanceReviewsHandler,
     GetPipsHandler,
     AdvanceReviewStateHandler,
+    CreateReviewHandler,
+    UpdateReviewHandler,
     IssuePipHandler,
     RunProbationSweepHandler,
     GetGrowthHandler,

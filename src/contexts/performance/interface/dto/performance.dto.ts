@@ -1,11 +1,44 @@
 // src/contexts/performance/interface/dto/performance.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class IssuePipDto {
   @ApiProperty() @IsString() employee!: string;
   @ApiProperty() @IsString() manager!: string;
   @ApiProperty() @IsInt() @Min(1) durationDays!: number;
+}
+
+/** Start a performance review for an employee (begins in Draft). */
+export class CreateReviewDto {
+  @ApiProperty() @IsString() @IsNotEmpty() employeeId!: string;
+  @ApiProperty({ description: 'e.g. "2026 Annual", "Q3 2026"' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  cycle!: string;
+  @ApiProperty({ description: 'ISO date YYYY-MM-DD' }) @IsDateString() due!: string;
+}
+
+/** Fill in review content — every field optional; only what's sent changes. */
+export class UpdateReviewDto {
+  @ApiProperty({ required: false, maxLength: 5000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  selfEvaluation?: string;
+
+  @ApiProperty({ required: false, maxLength: 5000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  managerEvaluation?: string;
+
+  @ApiProperty({ required: false, minimum: 0, maximum: 5, description: 'Overall rating 0–5' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(5)
+  score?: number;
 }
 
 /* ---------------- Continuous performance (growth) ---------------- */

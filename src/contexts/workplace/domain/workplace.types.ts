@@ -55,6 +55,17 @@ export interface TrainingCourse {
   creatorName?: string;
   assignedCount?: number;
   completedCount?: number;
+  /** True when the course carries an uploaded material file (streams via
+   *  /training-courses/:id/material). Bytes never ride the list read. */
+  hasMaterial?: boolean;
+  materialFileName?: string;
+}
+
+/** The stored course material for streaming (PDF/slides). */
+export interface TrainingCourseMaterial {
+  fileName: string;
+  mimeType: string;
+  data: Buffer;
 }
 
 /** What an employee may set on their own peer-created course. */
@@ -88,6 +99,11 @@ export interface CreateCourseInput {
   contentUrl?: string;
   durationMins?: number;
   passMark?: number;
+  /** Optional uploaded material — base64 payload + its MIME type and original
+   *  file name (all three together, or none). */
+  materialFileName?: string;
+  materialMimeType?: string;
+  materialDataBase64?: string;
 }
 
 export interface AssignTrainingInput {

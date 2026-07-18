@@ -23,6 +23,18 @@ export interface NewPipInput {
   durationDays: number;
 }
 
+export interface NewReviewInput {
+  employeeId: string;
+  cycle: string;
+  due: string; // ISO date
+}
+
+export interface UpdateReviewInput {
+  selfEvaluation?: string;
+  managerEvaluation?: string;
+  score?: number;
+}
+
 export interface ProbationSweepResult {
   /** Employees whose 90-day probationary review was just auto-initialized. */
   initialized: string[];
@@ -47,6 +59,34 @@ export class PerformanceRepository {
       orderBy: { startDate: 'desc' },
     });
     return rows.map(rowToPip);
+  }
+
+  /** Start a review in Draft. Employee must exist (FK enforces the tenant). */
+  async createReview(input: NewReviewInput): Promise<PerformanceReview[]> {
+    await this.prisma.performanceReview.create({
+      data: {
+        employeeId: input.employeeId,
+        cycle: input.cycle,
+        due: new Date(input.due),
+        state: 'DRAFT',
+      },
+    });
+    return this.getReviews();
+  }
+
+  /** Fill in review content — only the fields provided are written. */
+  async updateReview(id: string, input: UpdateReviewInput): Promise<PerformanceReview[]> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: Record<string, any> = {};
+    if (input.selfEvaluation !== undefined) data.selfEvaluation = input.selfEvaluation;
+    if (input.managerEvaluation !== undefined) data.managerEvaluation = input.managerEvaluation;
+    if (input.score !== undefined) data.score = input.score;
+    try {
+      await this.prisma.performanceReview.update({ where: { id }, data });
+    } catch {
+      throw new NotFoundException(`Performance review ${id} not found`);
+    }
+    return this.getReviews();
   }
 
   async advanceReviewState(id: string): Promise<PerformanceReview[]> {

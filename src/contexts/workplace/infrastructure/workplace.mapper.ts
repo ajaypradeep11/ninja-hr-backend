@@ -75,6 +75,9 @@ export function rowToTrainingCourse(row: any): TrainingCourse {
       ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
         row.assignments.filter((a: any) => a.status === 'COMPLETED').length
       : undefined,
+    // materialMimeType presence marks a stored file — list queries omit `materialData`.
+    hasMaterial: row.materialMimeType != null,
+    materialFileName: row.materialFileName ?? undefined,
   };
 }
 

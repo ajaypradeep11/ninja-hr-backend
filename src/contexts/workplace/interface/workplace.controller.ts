@@ -15,6 +15,7 @@ import {
   DeletePeerCourseCommand,
   GetAllAssignmentsQuery,
   GetCourseAssignmentsQuery,
+  GetCourseMaterialQuery,
   GetMyCoursesQuery,
   GetMyTrainingQuery,
   UpdateAssignmentCommand,
@@ -151,6 +152,25 @@ export class WorkplaceController {
   @Get('training-courses')
   getTrainingCourses() {
     return this.queries.execute(new GetTrainingCoursesQuery());
+  }
+
+  /** Streams a course's uploaded material file. Any authenticated user in the
+   *  tenant may open it — the catalog itself is company-wide. */
+  @Get('training-courses/:id/material')
+  async downloadCourseMaterial(@Param('id') id: string, @Res() res: Response) {
+    const file = (await this.queries.execute(new GetCourseMaterialQuery(id))) as {
+      fileName: string;
+      mimeType: string;
+      data: Buffer;
+    };
+    const ascii = file.fileName.replace(/"/g, '').replace(/[^\x20-\x7E]/g, '-');
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+    );
+    res.send(file.data);
   }
 
   @Post('training-courses')

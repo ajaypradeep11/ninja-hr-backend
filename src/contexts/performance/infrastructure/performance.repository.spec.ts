@@ -52,3 +52,43 @@ describe('PerformanceRepository.runProbationSweep', () => {
     expect(summary).toContain('unassigned');
   });
 });
+
+describe('PerformanceRepository.createReview', () => {
+  function makePrisma() {
+    return {
+      performanceReview: {
+        findMany: jest.fn(async () => []),
+        create: jest.fn(async () => ({})),
+        update: jest.fn(async () => ({})),
+      },
+    };
+  }
+
+  it('creates a review in Draft for the employee/cycle/due', async () => {
+    const prisma = makePrisma();
+    await new PerformanceRepository(prisma as never).createReview({
+      employeeId: 'emp1',
+      cycle: '2026 Annual',
+      due: '2026-12-31',
+    });
+    expect(prisma.performanceReview.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ employeeId: 'emp1', cycle: '2026 Annual', state: 'DRAFT' }),
+      }),
+    );
+    const call = prisma.performanceReview.create.mock.calls[0] as unknown as [{ data: { due: Date } }];
+    expect(call[0].data.due.toISOString().slice(0, 10)).toBe('2026-12-31');
+  });
+
+  it('writes only the review fields provided on update', async () => {
+    const prisma = makePrisma();
+    await new PerformanceRepository(prisma as never).updateReview('r1', {
+      managerEvaluation: 'Exceeded goals this cycle.',
+      score: 4.5,
+    });
+    expect(prisma.performanceReview.update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: { managerEvaluation: 'Exceeded goals this cycle.', score: 4.5 },
+    });
+  });
+});

@@ -8,6 +8,7 @@ import type {
   TrainingAssignment,
   TrainingStatus,
   CreateCourseInput,
+  TrainingCourseMaterial,
   AssignTrainingInput,
   PeerCourseInput,
   LetterTemplate,
@@ -154,6 +155,7 @@ export class WorkplaceRepository {
   async getTrainingCourses(): Promise<TrainingCourse[]> {
     const rows = await this.prisma.trainingCourse.findMany({
       orderBy: { title: 'asc' },
+      omit: { materialData: true }, // never drag file binaries into list reads
       include: {
         _count: { select: { assignments: true } },
         assignments: { select: { status: true } },
@@ -161,6 +163,20 @@ export class WorkplaceRepository {
       },
     });
     return rows.map(rowToTrainingCourse);
+  }
+
+  /** The stored material file for streaming (PDF/slides). Company scoping is
+   *  enforced by the tenant Prisma extension; missing/absent → 404. */
+  async getTrainingCourseMaterial(id: string): Promise<TrainingCourseMaterial> {
+    const row = await this.prisma.trainingCourse.findUnique({ where: { id } });
+    if (!row || !row.materialData || !row.materialMimeType) {
+      throw new NotFoundException('No material file for this course');
+    }
+    return {
+      fileName: row.materialFileName ?? 'course-material',
+      mimeType: row.materialMimeType,
+      data: Buffer.from(row.materialData),
+    };
   }
 
   /* ---------------------- Peer-created courses ----------------------- */
@@ -171,6 +187,7 @@ export class WorkplaceRepository {
     const rows = await this.prisma.trainingCourse.findMany({
       where: { createdById: actor.employeeId },
       orderBy: { createdAt: 'desc' },
+      omit: { materialData: true }, // never drag file binaries into list reads
       include: {
         _count: { select: { assignments: true } },
         assignments: { select: { status: true } },
@@ -247,6 +264,10 @@ export class WorkplaceRepository {
   }
 
   async createCourse(input: CreateCourseInput): Promise<TrainingCourse[]> {
+    const material =
+      input.materialDataBase64 && input.materialMimeType
+        ? Buffer.from(input.materialDataBase64, 'base64')
+        : null;
     await this.prisma.trainingCourse.create({
       data: {
         title: input.title,
@@ -255,7 +276,16 @@ export class WorkplaceRepository {
         contentUrl: input.contentUrl ?? null,
         durationMins: input.durationMins ?? null,
         passMark: input.passMark ?? null,
+        ...(material && input.materialMimeType
+          ? {
+              materialData: material,
+              materialMimeType: input.materialMimeType,
+              materialFileName: input.materialFileName ?? 'course-material',
+              materialSize: material.byteLength,
+            }
+          : {}),
       },
+      omit: { materialData: true },
     });
     return this.getTrainingCourses();
   }

@@ -33,6 +33,8 @@ export function rowToReview(row: any): PerformanceReview {
     cycle: row.cycle,
     state: reviewStateFromDb[row.state as keyof typeof reviewStateFromDb],
     score: row.score ?? undefined,
+    selfEvaluation: row.selfEvaluation ?? undefined,
+    managerEvaluation: row.managerEvaluation ?? undefined,
     due: iso(row.due),
   };
 }
