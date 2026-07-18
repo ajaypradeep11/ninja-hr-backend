@@ -25,6 +25,12 @@ import {
   UpdateGoalProgressCommand,
 } from '../application/growth.handlers';
 import {
+  AcknowledgeReviewCommand,
+  GetMyReviewsQuery,
+  SubmitManagerEvaluationCommand,
+  SubmitSelfEvaluationCommand,
+} from '../application/review-participation.handlers';
+import {
   ActionItemDto,
   CreateReviewDto,
   FeedbackRequestDto,
@@ -33,6 +39,8 @@ import {
   GoalWeightChangeDto,
   IssuePipDto,
   KudosDto,
+  SubmitManagerEvaluationDto,
+  SubmitSelfEvaluationDto,
   TalkingPointDto,
   ToggleActionItemDto,
   UpdateReviewDto,
@@ -63,6 +71,43 @@ export class PerformanceController {
     return this.commands.execute(
       new CreateReviewCommand({ employeeId: body.employeeId, cycle: body.cycle, due: body.due }),
     );
+  }
+
+  // Participation routes below intentionally carry NO @Roles gate: access is
+  // enforced row-by-row in the repository via the reporting line (the review's
+  // own employee, their assigned manager, or HR) — same pattern as the
+  // candidate-scoped recruitment routes.
+
+  /** The actor's review surface: own reviews + direct reports' (visibility-shaped). */
+  @Get('my-reviews')
+  getMyReviews(@ActorCtx() actor: ActorContext) {
+    return this.queries.execute(new GetMyReviewsQuery(actor));
+  }
+
+  /** Employee submits their self-assessment (locks it; opens the manager stage). */
+  @Post('reviews/:id/self')
+  submitSelfEvaluation(
+    @Param('id') id: string,
+    @Body() body: SubmitSelfEvaluationDto,
+    @ActorCtx() actor: ActorContext,
+  ) {
+    return this.commands.execute(new SubmitSelfEvaluationCommand(id, body.text, actor));
+  }
+
+  /** Assigned manager (or HR) submits the evaluation + proposed rating. */
+  @Post('reviews/:id/manager')
+  submitManagerEvaluation(
+    @Param('id') id: string,
+    @Body() body: SubmitManagerEvaluationDto,
+    @ActorCtx() actor: ActorContext,
+  ) {
+    return this.commands.execute(new SubmitManagerEvaluationCommand(id, body.text, body.score, actor));
+  }
+
+  /** Employee acknowledges the completed, shared review. */
+  @Post('reviews/:id/acknowledge')
+  acknowledgeReview(@Param('id') id: string, @ActorCtx() actor: ActorContext) {
+    return this.commands.execute(new AcknowledgeReviewCommand(id, actor));
   }
 
   /** Fill in review content (self/manager evaluation, score). */

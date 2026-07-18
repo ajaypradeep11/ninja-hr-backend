@@ -630,6 +630,12 @@ model PerformanceReview {
   selfEvaluation    String?
   /// The manager's written assessment (filled during the Manager-Evaluation stage).
   managerEvaluation String?
+  /// When the employee submitted their self-assessment (locks it; opens the manager stage).
+  selfSubmittedAt    DateTime?
+  /// When the assigned manager submitted their evaluation (opens calibration).
+  managerSubmittedAt DateTime?
+  /// When the employee acknowledged the shared (Completed) review.
+  acknowledgedAt     DateTime?
   due               DateTime
   companyId         String?
   company    Company?    @relation(fields: [companyId], references: [id], onDelete: Cascade)

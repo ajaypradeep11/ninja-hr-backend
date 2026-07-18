@@ -17,6 +17,18 @@ peer feedback · kudos.
 
 ## Business rules
 
+- **Participatory review flow** (modeled on Lattice/BambooHR/15Five): HR
+  creates (Draft) and launches (→ Self-Evaluation); the EMPLOYEE submits
+  their own self-assessment (`POST reviews/:id/self`, owner-only,
+  auto-advances); the ASSIGNED manager (`managerId`, reporting line — or HR)
+  submits the evaluation + proposed rating (`POST reviews/:id/manager`,
+  auto-advances to Calibrated); HR calibrates the score and completes
+  (shares); the employee acknowledges (`POST reviews/:id/acknowledge`,
+  Completed-only, idempotent).
+- **Independence gating** in `getMyReviews`: the manager can't see an
+  UNSUBMITTED self-eval; the employee can't see the manager eval or score
+  until Completed. Participation routes carry no @Roles — relationship
+  checks live in the repository.
 - State advance is race-guarded: `updateMany where {id, state: current}` — a
   double-click can't skip a stage.
 - PIP integrity: issuing manager auto-signs; `signedByEmployee` stays false

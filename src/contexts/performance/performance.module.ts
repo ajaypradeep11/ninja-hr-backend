@@ -9,6 +9,12 @@ import { GetPipsHandler } from './application/queries/get-pips.query';
 import { AdvanceReviewStateHandler } from './application/commands/advance-review-state.command';
 import { CreateReviewHandler } from './application/commands/create-review.command';
 import { UpdateReviewHandler } from './application/commands/update-review.command';
+import {
+  AcknowledgeReviewHandler,
+  GetMyReviewsHandler,
+  SubmitManagerEvaluationHandler,
+  SubmitSelfEvaluationHandler,
+} from './application/review-participation.handlers';
 import { IssuePipHandler } from './application/commands/issue-pip.command';
 import { RunProbationSweepHandler } from './application/commands/run-probation-sweep.command';
 import {
@@ -36,6 +42,10 @@ import {
     AdvanceReviewStateHandler,
     CreateReviewHandler,
     UpdateReviewHandler,
+    GetMyReviewsHandler,
+    SubmitSelfEvaluationHandler,
+    SubmitManagerEvaluationHandler,
+    AcknowledgeReviewHandler,
     IssuePipHandler,
     RunProbationSweepHandler,
     GetGrowthHandler,

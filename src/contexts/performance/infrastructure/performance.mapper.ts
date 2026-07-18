@@ -35,6 +35,9 @@ export function rowToReview(row: any): PerformanceReview {
     score: row.score ?? undefined,
     selfEvaluation: row.selfEvaluation ?? undefined,
     managerEvaluation: row.managerEvaluation ?? undefined,
+    selfSubmittedAt: row.selfSubmittedAt?.toISOString() ?? undefined,
+    managerSubmittedAt: row.managerSubmittedAt?.toISOString() ?? undefined,
+    acknowledgedAt: row.acknowledgedAt?.toISOString() ?? undefined,
     due: iso(row.due),
   };
 }

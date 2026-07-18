@@ -19,6 +19,22 @@ export class CreateReviewDto {
   @ApiProperty({ description: 'ISO date YYYY-MM-DD' }) @IsDateString() due!: string;
 }
 
+/** The employee's self-assessment submission. */
+export class SubmitSelfEvaluationDto {
+  @ApiProperty({ maxLength: 5000 }) @IsString() @IsNotEmpty() @MaxLength(5000) text!: string;
+}
+
+/** The assigned manager's evaluation + proposed rating. */
+export class SubmitManagerEvaluationDto {
+  @ApiProperty({ maxLength: 5000 }) @IsString() @IsNotEmpty() @MaxLength(5000) text!: string;
+  @ApiProperty({ required: false, minimum: 0, maximum: 5 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(5)
+  score?: number;
+}
+
 /** Fill in review content — every field optional; only what's sent changes. */
 export class UpdateReviewDto {
   @ApiProperty({ required: false, maxLength: 5000 })

@@ -1,7 +1,14 @@
 // src/contexts/performance/infrastructure/performance.repository.ts
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { TenantPrismaService } from 'src/platform/database/tenant-prisma.service';
-import type { PerformanceReview, Pip } from '../domain/performance.types';
+import type { ActorContext } from 'src/platform/auth/actor-context';
+import type { MyReviews, PerformanceReview, Pip } from '../domain/performance.types';
 import {
   reviewStateToDb,
   reviewStateFromDb,
@@ -59,6 +66,131 @@ export class PerformanceRepository {
       orderBy: { startDate: 'desc' },
     });
     return rows.map(rowToPip);
+  }
+
+  /**
+   * The actor-scoped review surface, visibility-shaped (the industry-standard
+   * independence gating: BambooHR/Lattice keep each side's writing hidden
+   * until the other has committed):
+   *  - `mine`: the actor's own reviews. The manager's evaluation and score are
+   *    hidden until the review is Completed (shared).
+   *  - `reports`: reviews of the actor's DIRECT REPORTS (by managerId — same
+   *    reporting-line routing as leave). The employee's self-evaluation is
+   *    hidden until they have submitted it, so the manager forms an
+   *    independent opinion first.
+   */
+  async getMyReviews(actor: ActorContext): Promise<MyReviews> {
+    if (!actor.employeeId) return { mine: [], reports: [] };
+    const rows = await this.prisma.performanceReview.findMany({
+      where: {
+        OR: [{ employeeId: actor.employeeId }, { employee: { managerId: actor.employeeId } }],
+      },
+      include: { employee: true },
+      orderBy: { due: 'asc' },
+    });
+    const mine: PerformanceReview[] = [];
+    const reports: PerformanceReview[] = [];
+    for (const row of rows) {
+      const dto = rowToReview(row);
+      if (row.employeeId === actor.employeeId) {
+        if (dto.state !== 'Completed') {
+          delete dto.managerEvaluation;
+          delete dto.score;
+        }
+        mine.push(dto);
+      } else {
+        if (!row.selfSubmittedAt) delete dto.selfEvaluation;
+        reports.push(dto);
+      }
+    }
+    return { mine, reports };
+  }
+
+  /**
+   * The employee submits their self-assessment. Only during Self-Evaluation,
+   * only by the review's own employee. Submission locks the text and
+   * auto-advances the review to Manager-Evaluation (race-guarded), so the
+   * flow moves without HR touching every review.
+   */
+  async submitSelfEvaluation(id: string, text: string, actor: ActorContext): Promise<MyReviews> {
+    const row = await this.prisma.performanceReview.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('Review not found');
+    if (!actor.employeeId || row.employeeId !== actor.employeeId) {
+      throw new ForbiddenException('Only the review’s employee can submit the self-assessment');
+    }
+    if (row.state !== 'SELF_EVALUATION') {
+      throw new ConflictException(
+        row.state === 'DRAFT'
+          ? 'This review has not been opened for self-evaluation yet'
+          : 'The self-evaluation window for this review has closed',
+      );
+    }
+    const updated = await this.prisma.performanceReview.updateMany({
+      where: { id, state: 'SELF_EVALUATION' },
+      data: { selfEvaluation: text, selfSubmittedAt: new Date(), state: 'MANAGER_EVALUATION' },
+    });
+    if (updated.count === 0) throw new ConflictException('Review changed state — reload and retry');
+    return this.getMyReviews(actor);
+  }
+
+  /**
+   * The assigned manager (reporting line) — or HR — submits the manager
+   * evaluation and proposed rating. Only during Manager-Evaluation.
+   * Auto-advances to Calibrated; HR then adjusts the score if needed and
+   * completes (shares) the review.
+   */
+  async submitManagerEvaluation(
+    id: string,
+    text: string,
+    score: number | undefined,
+    actor: ActorContext,
+  ): Promise<MyReviews> {
+    const row = await this.prisma.performanceReview.findUnique({
+      where: { id },
+      include: { employee: { select: { managerId: true } } },
+    });
+    if (!row) throw new NotFoundException('Review not found');
+    const isAssignedManager = !!actor.employeeId && row.employee.managerId === actor.employeeId;
+    if (actor.role !== 'HR_ADMIN' && !isAssignedManager) {
+      throw new ForbiddenException('Only the employee’s manager (or HR) can submit this evaluation');
+    }
+    if (row.state !== 'MANAGER_EVALUATION') {
+      throw new ConflictException(
+        row.state === 'DRAFT' || row.state === 'SELF_EVALUATION'
+          ? 'The manager evaluation opens after the self-evaluation is submitted'
+          : 'The manager-evaluation window for this review has closed',
+      );
+    }
+    const updated = await this.prisma.performanceReview.updateMany({
+      where: { id, state: 'MANAGER_EVALUATION' },
+      data: {
+        managerEvaluation: text,
+        ...(score !== undefined ? { score } : {}),
+        managerSubmittedAt: new Date(),
+        state: 'CALIBRATED',
+      },
+    });
+    if (updated.count === 0) throw new ConflictException('Review changed state — reload and retry');
+    return this.getMyReviews(actor);
+  }
+
+  /** The employee acknowledges the shared (Completed) review. Idempotent. */
+  async acknowledgeReview(id: string, actor: ActorContext): Promise<MyReviews> {
+    const row = await this.prisma.performanceReview.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('Review not found');
+    if (!actor.employeeId || row.employeeId !== actor.employeeId) {
+      throw new ForbiddenException('Only the review’s employee can acknowledge it');
+    }
+    if (row.state !== 'COMPLETED') {
+      throw new ConflictException('A review can be acknowledged once it is completed and shared');
+    }
+    if (!row.acknowledgedAt) {
+      await this.prisma.performanceReview.update({
+        where: { id },
+        data: { acknowledgedAt: new Date() },
+      });
+    }
+    return this.getMyReviews(actor);
   }
 
   /** Start a review in Draft. Employee must exist (FK enforces the tenant). */
