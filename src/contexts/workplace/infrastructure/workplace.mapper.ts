@@ -77,6 +77,7 @@ export function rowToTrainingCourse(row: any): TrainingCourse {
       : undefined,
     // materialMimeType presence marks a stored file — list queries omit `materialData`.
     hasMaterial: row.materialMimeType != null,
+    hasCover: row.coverImageMimeType != null,
     materialFileName: row.materialFileName ?? undefined,
   };
 }

@@ -686,6 +686,10 @@ model TrainingCourse {
   materialMimeType String?
   materialSize     Int?
   materialData     Bytes?
+  // Optional cover image for the catalog card (PNG/JPEG/WebP). List reads
+  // include only the MIME flag; bytes stream via the :id/cover endpoint.
+  coverImageMimeType String?
+  coverImageData     Bytes?
   active       Boolean              @default(true)
   /// Peer-created courses flow DRAFT → PENDING_APPROVAL → PUBLISHED/REJECTED.
   /// HR-authored catalog courses are PUBLISHED from birth.

@@ -8,6 +8,7 @@ import type {
   TrainingAssignment,
   TrainingStatus,
   CreateCourseInput,
+  TrainingCourseCover,
   TrainingCourseMaterial,
   AssignTrainingInput,
   PeerCourseInput,
@@ -155,7 +156,7 @@ export class WorkplaceRepository {
   async getTrainingCourses(): Promise<TrainingCourse[]> {
     const rows = await this.prisma.trainingCourse.findMany({
       orderBy: { title: 'asc' },
-      omit: { materialData: true }, // never drag file binaries into list reads
+      omit: { materialData: true, coverImageData: true }, // never drag file binaries into list reads
       include: {
         _count: { select: { assignments: true } },
         assignments: { select: { status: true } },
@@ -179,6 +180,15 @@ export class WorkplaceRepository {
     };
   }
 
+  /** The stored cover image for streaming. Tenant-scoped; missing → 404. */
+  async getTrainingCourseCover(id: string): Promise<TrainingCourseCover> {
+    const row = await this.prisma.trainingCourse.findUnique({ where: { id } });
+    if (!row || !row.coverImageData || !row.coverImageMimeType) {
+      throw new NotFoundException('No cover image for this course');
+    }
+    return { mimeType: row.coverImageMimeType, data: Buffer.from(row.coverImageData) };
+  }
+
   /* ---------------------- Peer-created courses ----------------------- */
 
   /** The actor's own courses (any status) with peer-completion engagement. */
@@ -187,7 +197,7 @@ export class WorkplaceRepository {
     const rows = await this.prisma.trainingCourse.findMany({
       where: { createdById: actor.employeeId },
       orderBy: { createdAt: 'desc' },
-      omit: { materialData: true }, // never drag file binaries into list reads
+      omit: { materialData: true, coverImageData: true }, // never drag file binaries into list reads
       include: {
         _count: { select: { assignments: true } },
         assignments: { select: { status: true } },
@@ -268,6 +278,10 @@ export class WorkplaceRepository {
       input.materialDataBase64 && input.materialMimeType
         ? Buffer.from(input.materialDataBase64, 'base64')
         : null;
+    const cover =
+      input.coverImageDataBase64 && input.coverImageMimeType
+        ? Buffer.from(input.coverImageDataBase64, 'base64')
+        : null;
     await this.prisma.trainingCourse.create({
       data: {
         title: input.title,
@@ -284,8 +298,11 @@ export class WorkplaceRepository {
               materialSize: material.byteLength,
             }
           : {}),
+        ...(cover && input.coverImageMimeType
+          ? { coverImageData: cover, coverImageMimeType: input.coverImageMimeType }
+          : {}),
       },
-      omit: { materialData: true },
+      omit: { materialData: true, coverImageData: true },
     });
     return this.getTrainingCourses();
   }

@@ -48,6 +48,8 @@ const COURSE_MATERIAL_MIME = [
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ] as const;
 
+const COURSE_COVER_MIME = ['image/png', 'image/jpeg', 'image/webp'] as const;
+
 export class CreateCourseDto {
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(160) title!: string;
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(80) category!: string;
@@ -70,6 +72,18 @@ export class CreateCourseDto {
   @IsString()
   @MaxLength(11_500_000)
   materialDataBase64?: string;
+
+  @ApiProperty({ required: false, enum: COURSE_COVER_MIME })
+  @IsOptional()
+  @IsIn(COURSE_COVER_MIME as unknown as string[])
+  coverImageMimeType?: string;
+
+  /** Base64 cover image, ~3 MB ceiling (catalog-card art, not a document). */
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(4_200_000)
+  coverImageDataBase64?: string;
 }
 
 export class UpdateCourseDto {

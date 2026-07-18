@@ -58,12 +58,20 @@ export interface TrainingCourse {
   /** True when the course carries an uploaded material file (streams via
    *  /training-courses/:id/material). Bytes never ride the list read. */
   hasMaterial?: boolean;
+  /** True when a cover image is stored (streams via :id/cover). */
+  hasCover?: boolean;
   materialFileName?: string;
 }
 
 /** The stored course material for streaming (PDF/slides). */
 export interface TrainingCourseMaterial {
   fileName: string;
+  mimeType: string;
+  data: Buffer;
+}
+
+/** The stored course cover image for streaming. */
+export interface TrainingCourseCover {
   mimeType: string;
   data: Buffer;
 }
@@ -104,6 +112,9 @@ export interface CreateCourseInput {
   materialFileName?: string;
   materialMimeType?: string;
   materialDataBase64?: string;
+  /** Optional cover image — base64 payload + its image MIME type (both or none). */
+  coverImageMimeType?: string;
+  coverImageDataBase64?: string;
 }
 
 export interface AssignTrainingInput {

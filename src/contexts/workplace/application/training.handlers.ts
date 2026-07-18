@@ -10,6 +10,7 @@ import type {
   PeerCourseInput,
   TrainingAssignment,
   TrainingCourse,
+  TrainingCourseCover,
   TrainingCourseMaterial,
   TrainingStatus,
 } from '../domain/workplace.types';
@@ -38,6 +39,17 @@ export class UpdateCourseHandler implements ICommandHandler<UpdateCourseCommand,
   constructor(private readonly repo: WorkplaceRepository) {}
   execute({ id, input }: UpdateCourseCommand) {
     return this.repo.updateCourse(id, input);
+  }
+}
+
+export class GetCourseCoverQuery {
+  constructor(public readonly id: string) {}
+}
+@QueryHandler(GetCourseCoverQuery)
+export class GetCourseCoverHandler implements IQueryHandler<GetCourseCoverQuery, TrainingCourseCover> {
+  constructor(private readonly repo: WorkplaceRepository) {}
+  execute({ id }: GetCourseCoverQuery) {
+    return this.repo.getTrainingCourseCover(id);
   }
 }
 

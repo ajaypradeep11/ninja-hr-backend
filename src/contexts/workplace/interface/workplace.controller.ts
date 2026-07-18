@@ -15,6 +15,7 @@ import {
   DeletePeerCourseCommand,
   GetAllAssignmentsQuery,
   GetCourseAssignmentsQuery,
+  GetCourseCoverQuery,
   GetCourseMaterialQuery,
   GetMyCoursesQuery,
   GetMyTrainingQuery,
@@ -171,6 +172,20 @@ export class WorkplaceController {
       `inline; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
     );
     res.send(file.data);
+  }
+
+  /** Streams a course's cover image (catalog-card art; any authenticated
+   *  user in the tenant, same as the material file). */
+  @Get('training-courses/:id/cover')
+  async courseCover(@Param('id') id: string, @Res() res: Response) {
+    const img = (await this.queries.execute(new GetCourseCoverQuery(id))) as {
+      mimeType: string;
+      data: Buffer;
+    };
+    res.setHeader('Content-Type', img.mimeType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(img.data);
   }
 
   @Post('training-courses')
