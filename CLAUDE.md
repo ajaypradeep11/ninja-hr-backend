@@ -1,157 +1,89 @@
-# CLAUDE.md
+# CLAUDE.md — ninja-hr-backend
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+NestJS (DDD + CQRS) API for NinjaHR, an agentic HR SaaS for Canadian SMBs.
+Owns Postgres via Prisma. Sibling repo `ninja-hr-frontend/` (Next.js 15) is a
+pure frontend — every read/write comes through this API.
 
-## Repository layout
-
-This is the backend half of NinjaHR (agentic HR SaaS for Canadian SMBs) — a
-NestJS (DDD + CQRS) API that owns Postgres via Prisma. It has a sibling repo,
-`ninja-hr-frontend/` (Next.js 15, App Router), which is pure frontend and
-owns no database; every read/write from it goes through this API. The two
-repos are normally checked out side by side under a shared parent folder but
-are otherwise independent (`.git`, `package.json`, lockfiles, CI).
-
-## Commands
+## [COMMANDS]
 
 ```bash
 npm i
-npm run db:up             # start Postgres in Docker (waits until healthy)
-npm run prisma:migrate    # apply migrations (dotenv -e .env -- prisma migrate deploy)
-npm run prisma:generate   # regenerate Prisma client — required after schema changes / fresh clone
-npm run db:seed           # idempotent demo data (safe to re-run)
-npm run start:dev         # http://localhost:4000/api/v1/health, Swagger at /api/docs
-npm run lint               # eslint --fix on src/ and test/
-npm run format              # prettier --write
-npm test                    # unit tests (jest, *.spec.ts colocated under src/)
-npm run test:e2e            # HTTP e2e suite (test/*.e2e-spec.ts, jest --runInBand) — needs db:up + prisma:migrate + db:seed
+npm run db:up             # local Postgres in Docker (waits until healthy)
+npm run prisma:migrate    # apply migrations
+npm run prisma:generate   # regenerate Prisma client (after schema change / fresh clone)
+npm run db:seed           # idempotent demo data
+npm run start:dev         # http://localhost:4000/api/v1/health, Swagger /api/docs
+npm run lint              # eslint --fix
+npm test                  # unit tests (*.spec.ts colocated under src/)
+npm run test:e2e          # test/*.e2e-spec.ts — needs db:up + migrate + seed
+npx jest path/to/file.spec.ts        # single file
 ```
 
-Run a single test:
+Firebase Auth local: emulator on 9099 (`FIREBASE_AUTH_EMULATOR_HOST`) or
+`FIREBASE_AUTH_DISABLED=1` (dev/e2e only; refused at boot in production).
+Seeded demo login: any seeded work email / `demo-password`.
 
-```bash
-npx jest path/to/file.spec.ts                 # one unit test file
-npx jest -t 'test name substring'              # by test name
-npx jest --config ./test/jest-e2e.json --runInBand --testPathPattern 'onboarding\.e2e-spec\.ts$'
-```
+## [SAFETY] Live-DB interlock — read before any DB command
 
-Firebase Auth locally (email/password sign-in for seeded demo users):
+`.env` may have `DB_LIVE=true`, which points DATABASE_URL (runtime + migrate +
+seed + e2e) at the **production** Cloud SQL DB. Destructive tooling (`db:seed`,
+e2e, `migrate dev|reset`, `db push`) refuses to run against live unless
+`DB_LIVE_CONFIRM=yes` (`src/platform/database/live-db.guard.ts`). For local
+work: `DB_LIVE=false npm run db:seed`. Never set the confirm flag unprompted.
 
-```bash
-firebase emulators:start --only auth --project demo-ninjahr   # port 9099
-npm run seed:auth        # signs every seeded user's work email up with demo-password
-```
-Set `FIREBASE_AUTH_EMULATOR_HOST=localhost:9099` and `FIREBASE_PROJECT_ID=demo-ninjahr`
-in `.env`, or set `FIREBASE_AUTH_DISABLED=1` to skip auth entirely (dev/e2e
-only — refused at boot in production, see `src/main.ts`). Demo login for any
-seeded work email (e.g. `sarah.mitchell@company.ca`) is `demo-password`.
+## [ARCHITECTURE] Layout + sector index
 
-### Whole stack (with frontend)
+Each bounded context under `src/contexts/<name>/` has four layers — `domain/`
+(pure rules, no framework), `application/` (one command/query class per
+operation), `infrastructure/` (Prisma repo + mapper), `interface/` (controller
++ DTOs) — and its own CLAUDE.md with features, business rules, and design
+rationale. Read the context file before working in it:
 
-`docker compose up --build` from the repo pair's parent directory runs
-Postgres + a real Firebase Auth emulator + backend + frontend together, wired
-and seeded to match. Sign in at `http://localhost:3000/login` with any
-seeded work email / `demo-password`.
+| Sector | Path | One-liner |
+|---|---|---|
+| [IDENTITY] | `src/contexts/identity/` | company signup, users, /me |
+| [ONBOARDING] | `src/contexts/onboarding/` | cases, checklists, invites, consents |
+| [PEOPLE] | `src/contexts/people/` | HRIS: employees, org, comp benchmarks |
+| [TIMEOFF] | `src/contexts/timeoff/` | leave requests, balances, provincial rules |
+| [RECRUITMENT] | `src/contexts/recruitment/` | ATS, public careers, candidate portal, AI drafting |
+| [PERFORMANCE] | `src/contexts/performance/` | reviews, PIPs, goals/1:1s/kudos |
+| [OFFBOARDING] | `src/contexts/offboarding/` | separation board, termination guard |
+| [WORKPLACE] | `src/contexts/workplace/` | manager workspace views |
+| [PLATFORM] | `src/contexts/platform/` | HR Co-Pilot chat, policies, moderation |
+| [PLATFORM-ADMIN] | `src/contexts/platform-admin/` | cross-tenant admin console (2nd key) |
+| [TOOL-LIBRARY] | `src/contexts/tool-library/` | premium AI tool catalog + RBAC + guarded runs |
+| [PLATFORM-INFRA] | `src/platform/` | auth guards, tenancy, AI guardrails, DB services |
 
-## Architecture
+`src/shared-kernel/` = cross-context primitives. `prisma/schema.prisma` =
+single DB, ~50 models, all tenant-scoped rows hang off `Company`.
 
-### DDD bounded contexts + CQRS
+## [INVARIANTS] Cross-cutting rules (details in src/platform/CLAUDE.md)
 
-`src/contexts/<context>/` — one folder per bounded context (`identity`,
-`onboarding`, `people`, `timeoff`, `recruitment`, `performance`,
-`offboarding`, `workplace`, `platform`), each with the same four layers:
+- **Auth**: three global guards in fixed order — InternalKeyGuard (edge:
+  internal key OR Firebase bearer) → AppThrottlerGuard → ActorGuard (resolves
+  ActorContext + tenant) → RolesGuard. Never reorder the APP_GUARD array.
+- **Tenancy**: implicit per-request via AsyncLocalStorage + Prisma extension;
+  fails closed. Nested writes are NOT auto-stamped — set companyId explicitly.
+  Tenant-less flows (careers, portal tokens) use TenantResolver escape hatches.
+- **Rate limits**: untrusted lanes throttled per-IP; trusted internal-key lane
+  exempt. AI runs additionally guarded (input/output classifiers + limiter).
+- **Secrets**: `INTERNAL_API_KEY` is a comma-separated rotation list. Webhook
+  lane uses scoped `INBOUND_WEBHOOK_SECRET` HMAC, never the internal key.
 
-- `domain/` — entities, value objects, pure domain services (e.g. checklist
-  rules, status transitions). No framework or Prisma dependency.
-- `application/` — CQRS commands (`commands/*.command.ts`, one write
-  operation each) and queries (`queries/*.query.ts`, one read each).
-- `infrastructure/` — Prisma repository + mapper (domain ↔ persistence).
-- `interface/` — NestJS controller + DTOs, the HTTP boundary for the context.
+## [DEPLOY]
 
-`src/shared-kernel/` holds cross-context primitives (`aggregate-root.ts`,
-`province.ts`). `src/platform/` holds cross-cutting infra: `auth/` (guards),
-`database/` (Prisma service, tenant context), `health/`.
+Cloud Run + Cloud SQL. CI (`.github/workflows/deploy.yml`) on push to main:
+lint+tests gate → build SHA-pinned `runtime` (slim serve-only) and `-ops`
+(prisma CLI) images → run migrations via `ninja-hr-migrate` Cloud Run job →
+deploy. Serving container never migrates at boot. Secrets via Secret Manager
+(`--update-secrets`, NOT `--set-secrets` — set replaces the whole list; that
+mistake once left prod serving 17-deploy-old code). Never set
+`FIREBASE_AUTH_DISABLED` / emulator vars in production.
 
-Data model: one Postgres DB (`prisma/schema.prisma`), ~35+ models spanning
-identity/HRIS (`Employee`, `User`), onboarding (`OnboardingCase`,
-`ChecklistTask`, `CaseDocument`, `ConsentEntry`), recruitment (`Requisition`,
-`Candidate`, ATS/scorecard models), performance (`PerformanceReview`, `Pip`),
-training, offboarding, growth (`Goal`, `OneOnOne`, `Kudos`), and a `Company`
-model that roots multi-tenancy. Migrations live in `prisma/migrations/`
-(dated, sequential — `npm run prisma:migrate` applies them; never hand-edit
-an already-applied migration).
+## [CONVENTIONS]
 
-### Multi-tenancy
-
-Every tenant-scoped row hangs off `Company`. Tenant scoping is implicit, not
-per-query: `src/platform/database/tenant-context.ts` holds the current
-request's `companyId` in an `AsyncLocalStorage`, opened fresh per-request by
-Express middleware in `main.ts` before the guard chain runs, then populated
-by `ActorGuard` once it resolves the caller. A Prisma extension reads this
-store to scope queries automatically. Tenant-less "escape hatch" flows
-(public careers-by-slug, candidate track-by-token) call `tenant.run()`
-explicitly. See `docs/superpowers/specs/2026-07-10-multi-tenancy-design.md`
-for the full design rationale.
-
-### Auth: two lanes, three guards
-
-Global guards run in this order (`APP_GUARD` registration order in
-`app.module.ts` matters — do not reorder):
-
-1. **`InternalKeyGuard`** — the edge guard. Either a constant-time
-   `x-internal-key` match (trusted server-to-server lane: the frontend's BFF,
-   seed scripts, e2e tests — sets `req.trusted`) or a verified Firebase bearer
-   token (`Authorization: Bearer …` — sets `req.firebaseUser`). Routes marked
-   `@Public()` skip this.
-2. **`ActorGuard`** — resolves the caller into a full `ActorContext`
-   (`userId`, `employeeId`, `role`, `companyId`, `realUserId`) and sets the
-   tenant. Trusted lane: `x-actor-id` header names the acting user directly
-   (no role check — the BFF is trusted), falling back to a persona-only
-   (`x-actor-persona: admin|employee`) legacy mode with no user identity.
-   Firebase lane: resolves by `firebaseUid`, auto-links on first login by
-   *verified* email only (unverified-email auto-link would allow account
-   takeover), and allows `x-actor-id` impersonation only when the verified
-   caller is `HR_ADMIN` and the target is in the same company (`realUserId`
-   always carries the true caller so impersonation stays traceable).
-3. **`RolesGuard`** — enforces `@Roles()` against the resolved actor.
-
-`FIREBASE_AUTH_DISABLED=1` and weak/default `INTERNAL_API_KEY` are refused at
-boot when `NODE_ENV=production` (`assertProductionConfig()` in `main.ts`) —
-this backend has no other end-user auth, so either misconfiguration is a full
-auth bypass.
-
-### AI features
-
-AI-labelled features (JD generation, candidate message drafting, HR
-Co-Pilot) are served here (`@anthropic-ai/sdk`), which uses
-`ANTHROPIC_API_KEY` when set and falls back to deterministic templates
-otherwise.
-
-## Deployment
-
-Cloud Run + Cloud SQL (Postgres). Firebase App Hosting is Next.js-only and
-cannot run this NestJS service. CI: `.github/workflows/deploy.yml` runs
-lint+tests, builds/pushes two SHA-pinned images (`runtime` = slim serving,
-`ops` = prisma CLI/toolchain), executes migrations via the `ninja-hr-migrate`
-Cloud Run job (ops image), then deploys — all on every push to `main`
-(Workload Identity Federation, no stored secrets). The serving container does
-NOT migrate at boot. Prefer `--set-secrets` (Secret Manager) over
-`--set-env-vars` for `INTERNAL_API_KEY` etc. (which accepts a comma-separated
-list for zero-downtime rotation). Never set `FIREBASE_AUTH_EMULATOR_HOST` /
-`FIREBASE_AUTH_DISABLED` in production.
-
-Safety interlocks: destructive DB tooling (`db:seed`, e2e, `migrate
-dev`/`reset`, `db push`) refuses to run when `DATABASE_URL` resolves to the
-live DB (`DB_LIVE=true`) unless `DB_LIVE_CONFIRM=yes` — see
-`src/platform/database/live-db.guard.ts`. Untrusted HTTP lanes are rate
-limited per IP (`AppThrottlerGuard`; the internal-key lane is exempt). The
-inbound-email webhook authenticates via `INBOUND_WEBHOOK_SECRET` HMAC
-(`InboundWebhookGuard`), not the internal key.
-
-## Conventions
-
-- Tests are colocated `*.spec.ts` next to the code they test (domain
-  services, mappers, guards); e2e specs live in `test/*.e2e-spec.ts`, one per
-  bounded context plus `tenant-isolation.e2e-spec.ts` for cross-tenant checks.
-- Design/planning docs for past features live under `docs/superpowers/{specs,plans}/`
-  — check there for rationale before re-deriving it (e.g. multi-tenancy
-  design, Firebase auth design).
+- Tests colocated `*.spec.ts`; e2e per context in `test/` plus
+  `tenant-isolation.e2e-spec.ts`.
+- Commit and push directly to `main` — no branches/PRs unless asked.
+- Design docs with rationale: `docs/superpowers/{specs,plans}/`; security
+  review + remediation log: `docs/security-infra-review-2026-07-17.md`.
