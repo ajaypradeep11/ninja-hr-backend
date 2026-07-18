@@ -18,15 +18,15 @@ export class TimeoffController {
     private readonly commands: CommandBus,
   ) {}
 
-  /** Actor-scoped: HR = company-wide log, manager = own department, employee = own. */
+  /** Actor-scoped: HR = company-wide log, manager = own + direct reports, employee = own. */
   @Get('leave-requests')
   getLeaveRequests(@ActorCtx() actor: ActorContext) {
     return this.queries.execute(new GetLeaveRequestsQuery(actor));
   }
 
   /**
-   * Approve/deny — routed to the employee's DEPARTMENT MANAGER (HR retains an
-   * override, but the queue lives with the manager, not the HR console).
+   * Approve/deny — routed to the requester's ASSIGNED manager (reporting line);
+   * HR retains an override, but the queue lives with the manager.
    */
   @Patch('leave-requests/:id/status')
   setLeaveStatus(

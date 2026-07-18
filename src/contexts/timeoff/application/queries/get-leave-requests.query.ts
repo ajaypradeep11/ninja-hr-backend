@@ -15,7 +15,8 @@ export class GetLeaveRequestsHandler
   constructor(private readonly repo: TimeoffRepository) {}
 
   execute({ actor }: GetLeaveRequestsQuery): Promise<LeaveRequest[]> {
-    // Scoping is the routing: HR = all, manager = their department, employee = own.
+    // Scoping is the routing: HR = all, manager = own + direct reports
+    // (by reporting line), employee = own.
     return this.repo.getLeaveRequests(actor);
   }
 }

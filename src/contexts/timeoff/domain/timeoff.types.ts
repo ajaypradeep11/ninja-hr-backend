@@ -14,7 +14,7 @@ export type LeaveStatus = 'Pending' | 'Approved' | 'Denied';
 export interface LeaveRequest {
   id: string;
   employee: string;
-  /** Routing key: pending requests go to this department's manager. */
+  /** Display/search only — approval routing is by reporting line (managerId), not department. */
   department: string;
   type: LeaveType;
   start: string; // ISO date YYYY-MM-DD

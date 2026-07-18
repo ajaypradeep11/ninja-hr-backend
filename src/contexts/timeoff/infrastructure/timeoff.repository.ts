@@ -30,19 +30,22 @@ export class TimeoffRepository {
   constructor(private readonly prisma: TenantPrismaService) {}
 
   /**
-   * Actor-scoped list — this IS the routing:
+   * Actor-scoped list — this IS the routing, keyed on the REPORTING LINE
+   * (`Employee.managerId`), not the department string:
    *  - HR_ADMIN sees the company-wide absence log,
-   *  - a MANAGER sees their own requests + every request from their department
-   *    (their approval queue),
-   *  - an employee sees only their own.
+   *  - anyone with direct reports sees their own requests + every request from
+   *    someone who reports to them (their approval queue) — role-agnostic, so a
+   *    manager in a different department than their report still sees it,
+   *  - an employee with no reports sees only their own.
+   * The persona lane (no employeeId) resolves to nobody, never everyone.
    */
   async getLeaveRequests(actor?: ActorContext): Promise<LeaveRequest[]> {
     const where =
       !actor || actor.role === 'HR_ADMIN'
         ? {}
-        : actor.role === 'MANAGER' && actor.department
-          ? { OR: [{ employee: { department: actor.department } }, { employeeId: actor.employeeId ?? '__none__' }] }
-          : { employeeId: actor?.employeeId ?? '__none__' };
+        : actor.employeeId
+          ? { OR: [{ employeeId: actor.employeeId }, { employee: { managerId: actor.employeeId } }] }
+          : { employeeId: '__none__' };
     const rows = await this.prisma.leaveRequest.findMany({
       where,
       include: { employee: true },
@@ -52,22 +55,21 @@ export class TimeoffRepository {
   }
 
   /**
-   * Approve/deny — routed to the employee's DEPARTMENT MANAGER. HR keeps an
-   * override path via the absence log, but the day-to-day decision belongs to
-   * the manager of that department.
+   * Approve/deny — the decision belongs to the requester's ASSIGNED manager
+   * (`Employee.managerId`, the reporting line). HR keeps an override path via
+   * the absence log.
    */
   async updateStatus(id: string, status: LeaveStatus, actor: ActorContext): Promise<void> {
     const row = await this.prisma.leaveRequest.findUnique({
       where: { id },
-      include: { employee: { select: { department: true } } },
+      include: { employee: { select: { name: true, managerId: true } } },
     });
     if (!row) throw new NotFoundException('Leave request not found');
 
-    const isDeptManager =
-      actor.role === 'MANAGER' && !!actor.department && actor.department === row.employee.department;
-    if (actor.role !== 'HR_ADMIN' && !isDeptManager) {
+    const isAssignedManager = !!actor.employeeId && row.employee.managerId === actor.employeeId;
+    if (actor.role !== 'HR_ADMIN' && !isAssignedManager) {
       throw new ForbiddenException(
-        `This request is routed to the ${row.employee.department} department manager for approval`,
+        `This request is routed to ${row.employee.name}'s manager for approval`,
       );
     }
     await this.prisma.leaveRequest.update({
@@ -94,7 +96,7 @@ export class TimeoffRepository {
         throw new ConflictException('Only pending requests can be edited — ask HR for changes');
       }
       if (input.status) {
-        throw new ForbiddenException('Request status is decided by your department manager');
+        throw new ForbiddenException('Request status is decided by your manager');
       }
     }
 
